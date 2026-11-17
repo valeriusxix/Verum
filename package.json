@@ -1,0 +1,24 @@
+{
+  "name": "verum",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Verum: a public traction ledger for QIE mainnet projects. What's real on QIE.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r --if-present test && pnpm contracts:test",
+    "dev:web": "pnpm --filter @verum/web dev",
+    "dev:api": "pnpm --filter @verum/api dev",
+    "dev:worker": "pnpm --filter @verum/worker dev",
+    "contracts:build": "forge build --root contracts",
+    "contracts:test": "forge test --root contracts"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}

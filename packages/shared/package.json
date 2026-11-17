@@ -1,0 +1,18 @@
+{
+  "name": "@verum/shared",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Types, chain config, metric definitions and zod schemas shared by worker, api and web.",
+  "exports": {
+    ".": "./index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p .",
+    "test": "tsx --test addresses.test.ts metrics.test.ts"
+  },
+  "dependencies": {
+    "viem": "^2.57.20",
+    "zod": "^4.6.7"
+  }
+}

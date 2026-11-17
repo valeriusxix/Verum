@@ -1,0 +1,20 @@
+{
+  "name": "@verum/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Public JSON API (/v1/*) and README badge, on Hono. Reads only from Postgres.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "tsx watch --env-file-if-exists=../.env src/index.ts",
+    "start": "tsx --env-file-if-exists=../.env src/index.ts",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.8",
+    "@verum/shared": "workspace:*",
+    "hono": "^4.13.18"
+  }
+}

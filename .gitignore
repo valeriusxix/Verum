@@ -1,0 +1,30 @@
+# deps / builds
+node_modules
+dist
+dist-ssr
+*.tsbuildinfo
+
+# env: never commit secrets (ATTESTER_PK, DATABASE_URL)
+.env
+.env.*
+!.env.example
+*.local
+
+# foundry (also see contracts/.gitignore)
+contracts/out/
+contracts/cache/
+contracts/broadcast/*/31337/
+contracts/broadcast/**/dry-run/
+
+# logs
+logs
+*.log
+pnpm-debug.log*
+
+# editor / OS
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.sw?
