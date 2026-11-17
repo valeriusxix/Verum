@@ -291,6 +291,7 @@ contract VerumRegistry {
     mapping(uint256 => address[]) internal _contracts;
     mapping(uint256 => Milestone[3]) internal _milestones;
     mapping(address => mapping(uint256 => bool)) public watching;
+    mapping(uint256 => uint64) public lastPeriodEnd;  // latest Seal per project (added 17 Nov)
 
     event ProjectRegistered(uint256 indexed id, address indexed owner, string slug, string metadataURI);
     event ContractsAdded(uint256 indexed id, address[] contracts);
@@ -318,6 +319,9 @@ Rules:
 - `register` reverts on duplicate slug or bad slug format. Max 20 contracts per project.
 - `Milestone.metric` = the plain metric name as bytes32 (UTF-8, zero right-padded), e.g. `"organic_wau"`, so it reads straight off the explorer. `bytes32(0)` = unset slot (decided 17 Nov).
 - **Ownership is proven off-chain**: after `ContractsAdded`, the worker checks `creator_address_hash` (explorer) for each contract. If the creator ≠ project owner, the contract is listed as "unverified claim" until the owner signs an EIP-191 message *from the creator wallet*. Don't do this on-chain.
+- `periodEnd` = unix seconds at 00:00 UTC of the snapshot's `period_end` date (multiple of 86400). `snapshot` reverts unless `periodEnd` is a non-zero UTC midnight, not in the future, and strictly greater than `lastPeriodEnd[id]`, so there are no duplicate or backdated Seals. It also reverts if `organicWallets > rawWallets` (decided 17 Nov).
+- `markMilestone` is strict: it reverts if `idx >= 3`, the slot is unset, the slot is already reached, or `value < target` (op is always `>=`) (decided 17 Nov).
+- `setMilestones` ignores the caller's `reachedAt`. A slot keeps its `reachedAt` only if metric/target/windowDays are unchanged; an edited slot resets to 0. `MilestoneReached` events stay on-chain either way (decided 17 Nov).
 - `snapshot` is called once per project per day (UTC). `metricsHash = keccak256(canonical JSON of that day's daily_metrics row + cohort row)`. The payload is stored in Postgres and served at `/v1/projects/:slug/snapshots/:date` so anyone can recompute the hash.
 - Write Foundry tests: register/duplicate slug, only-owner, only-attester, milestone bounds, watch toggle, events.
 - Deploy on testnet first, then mainnet (`--chain-id 1990`). Verify with `forge verify-contract --verifier blockscout --verifier-url https://mainnet.qie.digital/api/`.

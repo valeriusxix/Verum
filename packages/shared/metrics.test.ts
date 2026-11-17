@@ -1,7 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { MILESTONE_METRICS, isOrganic, verumScore } from './metrics';
-import { decodeMilestoneMetric, encodeMilestoneMetric } from './registry';
+import { dateFromPeriodEnd, decodeMilestoneMetric, encodeMilestoneMetric, periodEndFromDate } from './registry';
+
+test('periodEnd: UTC midnight of the period_end date, matching the forge test fixture', () => {
+  assert.equal(periodEndFromDate('2026-11-16'), 1_794_787_200n);
+  assert.equal(dateFromPeriodEnd(1_794_787_200n), '2026-11-16');
+  assert.throws(() => periodEndFromDate('2026-02-30'));
+  assert.throws(() => dateFromPeriodEnd(1_794_787_201));
+});
 
 test('milestone metric bytes32: plain name round-trips', () => {
   assert.equal(

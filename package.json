@@ -14,7 +14,8 @@
     "dev:api": "pnpm --filter @verum/api dev",
     "dev:worker": "pnpm --filter @verum/worker dev",
     "contracts:build": "forge build --root contracts",
-    "contracts:test": "forge test --root contracts"
+    "contracts:test": "forge test --root contracts",
+    "abi": "forge build --root contracts && node scripts/export-abi.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
