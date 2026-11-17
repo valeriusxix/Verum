@@ -118,7 +118,8 @@ Use these. Don't re-guess them.
 | Native symbol | QIE (18 decimals) |
 | Chain activity at test time | 539,097 total txs · 158,035 addresses · ~1,600–1,800 txs/day |
 | Contracts | 830 total, 140 verified |
-| Testnet (dev only) | chain `1983`, `https://rpc1testnet.qie.digital/`, faucet `qie.digital/faucet` |
+| Testnet (dev only) | chain `1983`, `https://rpc1testnet.qie.digital/`, faucet `qie.digital/faucet`, explorer `https://testnet.qie.digital` (Blockscout v7.0.2, checked 16 Nov) |
+| EVM version | **Shanghai** (PUSH0 works). **No Cancun**: TSTORE/MCOPY fail with "invalid opcode" on mainnet and testnet (eth_call probe, 16 Nov). Compile with `evm_version = "shanghai"`. |
 
 ### 4.2 Explorer API behaviour
 | Endpoint | Result |
@@ -163,10 +164,18 @@ Use these. Don't re-guess them.
 ### 4.5 Known noise
 - `0x725Ccc2C1C86c9BC31A90020128D99Ff8D351aA0` (oracle updater) alone has 138,617 txs, about a quarter of all chain history. Chain-wide numbers are dominated by bots. Always exclude known system/oracle addresses from any chain-level "real activity" figure.
 
-### 4.6 Not confirmed: ask in the QIE dev Telegram on day 1
-- Is there a public **QIE ID resolver** (address → name.qie) or **QIE Pass** attestation contract? Only a third-party `QieIdGatedAllowlist` (`0x3142…c461`) was found. If yes, add names and a "verified human" share. If no, skip; don't fake it.
-- Does QIE Wallet inject EIP-1193 / announce via EIP-6963? Test with the extension on day 1.
-- QIEDEX router/factory addresses (only needed for stretch token pricing).
+### 4.6 Day 1 open questions: resolved 17 Nov 2026
+- **QIE ID / QIE Pass**: there's **no public resolver**. QIE ID stays stretch; don't fake names. (Only a third-party `QieIdGatedAllowlist` `0x3142…c461` exists.)
+- **QIE Wallet**: announces via **EIP-6963** with `rdns: me.qiewallet`. Fallback: legacy global `window.qie`. Rules:
+  - Never identify it via `isMetaMask`.
+  - Disconnect arrives as `accountsChanged` with an empty array.
+  - Testnet needs the in-wallet testnet toggle; otherwise a chain switch fails with error `4902`.
+- **QIEDEX** (verified on-chain: `router.factory()` and `router.WETH()` match):
+  | Item | Address |
+  |---|---|
+  | Router | `0x08cd2e72e156D8563B4351eb4065C262A9f553Ef` |
+  | Factory | `0x8E23128a5511223bE6c0d64106e2D4508C08398C` |
+  | WQIE | `0x0087904D95BEe9E5F24dc8852804b547981A9139` |
 
 ---
 
@@ -253,7 +262,7 @@ When the attester sees a milestone crossed, it calls `markMilestone` on-chain (�
 - [x] **QIE Oracles**: QIE/USDT for USD volume, with staleness fallback. Also an "oracle health" mini panel on the landing page (7 feeds, age of each). This is useful to every QIE dev and shows integration depth.
 - [x] **QUSDC**: stablecoin volume metric per project.
 - [x] **Explorer / Blockscout**: verification status, creator ownership proof.
-- [ ] **QIE ID / Pass**: only if §4.6 confirms a resolver.
+- [ ] **QIE ID / Pass**: stretch only. §4.6 confirmed there's no public resolver.
 
 ---
 
@@ -291,7 +300,11 @@ contract VerumRegistry {
     event Snapshot(uint256 indexed id, uint64 indexed periodEnd, bytes32 metricsHash,
                    uint32 organicWallets, uint32 rawWallets, uint32 txCount);
     event Watched(uint256 indexed id, address indexed user, bool on);
+    event OwnershipTransferred(uint256 indexed id, address indexed previousOwner, address indexed newOwner); // added 17 Nov
 
+    constructor(address attester_);  // admin = msg.sender (decided 17 Nov)
+
+    // views (added 17 Nov): getContracts(id) -> address[], getMilestones(id) -> Milestone[3]
     // registerFull(slug, metadataURI, contracts[], milestones[3]) — register + addContracts + setMilestones
     //   in ONE tx, so onboarding is a single wallet signature (used by /register)
     // owner functions: register, addContracts, updateMetadata, setMilestones, transferOwnership
@@ -303,6 +316,7 @@ contract VerumRegistry {
 
 Rules:
 - `register` reverts on duplicate slug or bad slug format. Max 20 contracts per project.
+- `Milestone.metric` = the plain metric name as bytes32 (UTF-8, zero right-padded), e.g. `"organic_wau"`, so it reads straight off the explorer. `bytes32(0)` = unset slot (decided 17 Nov).
 - **Ownership is proven off-chain**: after `ContractsAdded`, the worker checks `creator_address_hash` (explorer) for each contract. If the creator ≠ project owner, the contract is listed as "unverified claim" until the owner signs an EIP-191 message *from the creator wallet*. Don't do this on-chain.
 - `snapshot` is called once per project per day (UTC). `metricsHash = keccak256(canonical JSON of that day's daily_metrics row + cohort row)`. The payload is stored in Postgres and served at `/v1/projects/:slug/snapshots/:date` so anyone can recompute the hash.
 - Write Foundry tests: register/duplicate slug, only-owner, only-attester, milestone bounds, watch toggle, events.
