@@ -1,9 +1,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { getAddress } from 'viem';
-import { KNOWN_SYSTEM_ADDRESSES, ORACLES, QUSDC, isKnownSystemAddress } from './addresses';
+import { KNOWN_SYSTEM_ADDRESSES, ORACLES, QIEDEX, QUSDC, WQIE, isKnownSystemAddress } from './addresses';
 
-const all = [...Object.values(ORACLES), QUSDC.address, ...KNOWN_SYSTEM_ADDRESSES];
+const all = [
+  ...Object.values(ORACLES),
+  QUSDC.address,
+  ...Object.values(QIEDEX),
+  WQIE,
+  ...KNOWN_SYSTEM_ADDRESSES,
+];
 
 test('every hardcoded address carries a valid EIP-55 checksum (catches typos)', () => {
   for (const a of all) assert.equal(getAddress(a), a);

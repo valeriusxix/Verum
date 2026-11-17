@@ -26,6 +26,15 @@ contract VerumRegistryTest is Test {
         new VerumRegistry(address(0));
     }
 
+    function test_views_emptyForUnknownProject() public view {
+        assertEq(registry.getContracts(1).length, 0);
+        VerumRegistry.Milestone[3] memory ms = registry.getMilestones(1);
+        for (uint256 i; i < 3; ++i) {
+            assertEq(ms[i].metric, bytes32(0));
+            assertEq(ms[i].target, 0);
+        }
+    }
+
     function test_attesterFunctions_rejectNonAttester() public {
         vm.expectRevert(VerumRegistry.NotAttester.selector);
         registry.snapshot(1, 0, bytes32(0), 0, 0, 0);

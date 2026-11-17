@@ -1,6 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isOrganic, verumScore } from './metrics';
+import { MILESTONE_METRICS, isOrganic, verumScore } from './metrics';
+import { decodeMilestoneMetric, encodeMilestoneMetric } from './registry';
+
+test('milestone metric bytes32: plain name round-trips', () => {
+  assert.equal(
+    encodeMilestoneMetric('organic_wau'),
+    '0x6f7267616e69635f776175000000000000000000000000000000000000000000',
+  );
+  for (const m of MILESTONE_METRICS) assert.equal(decodeMilestoneMetric(encodeMilestoneMetric(m)), m);
+  assert.equal(decodeMilestoneMetric(`0x${'0'.repeat(64)}`), null);
+});
 import { addressSchema, explorerTxlistResponseSchema, slugSchema } from './schemas';
 
 test('verumScore: perfect and worst inputs hit the bounds', () => {

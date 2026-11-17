@@ -40,6 +40,18 @@ export const QUSDC = {
 } as const satisfies { address: Address; decimals: number; symbol: string };
 
 /**
+ * QIEDEX (Uniswap V2-style). Verified on-chain 17 Nov 2026: `router.factory()` == FACTORY and
+ * `router.WETH()` == WQIE; `WQIE.symbol()` == "WQIE". Used for stretch token pricing (§2).
+ */
+export const QIEDEX = {
+  router: '0x08cd2e72e156D8563B4351eb4065C262A9f553Ef',
+  factory: '0x8E23128a5511223bE6c0d64106e2D4508C08398C',
+} as const satisfies Record<string, Address>;
+
+/** Wrapped native QIE (the router's `WETH()`). */
+export const WQIE = '0x0087904D95BEe9E5F24dc8852804b547981A9139' as const satisfies Address;
+
+/**
  * System / oracle addresses excluded from any chain-level "real activity" figure (§4.5).
  * 0x725C…1aA0 is the oracle updater: 138,617 txs, ~a quarter of all chain history.
  */

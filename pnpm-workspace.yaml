@@ -3,3 +3,5 @@ packages:
   - worker
   - api
   - web
+allowBuilds:
+  esbuild: true

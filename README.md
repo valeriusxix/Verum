@@ -84,6 +84,15 @@ QIE supports the **Shanghai** EVM (PUSH0) but **not Cancun** (TSTORE/MCOPY), so 
 | RPC | `https://rpc{1..5}mainnet.qie.digital/` | `https://rpc1testnet.qie.digital/` |
 | Explorer (Blockscout) | https://mainnet.qie.digital | https://testnet.qie.digital |
 
+Known mainnet contracts (all in [`packages/shared/addresses.ts`](packages/shared/addresses.ts)): QIE Oracles
+(7 AggregatorV3 feeds), QUSDC `0x3F43…5DA5`, QIEDEX router `0x08cd…53Ef` / factory `0x8E23…398C`, WQIE `0x0087…9139`.
+
+### QIE Wallet
+
+Detected via EIP-6963 (`rdns: me.qiewallet`), falling back to `window.qie`. `isMetaMask` is never used to
+identify it. `accountsChanged([])` means disconnected. Testnet needs the in-wallet testnet toggle; otherwise a
+chain switch fails with `4902`. QIE ID names are a stretch goal because there's no public resolver.
+
 ## Metric definitions
 
 The source of truth is [`packages/shared/metrics.ts`](packages/shared/metrics.ts). The worker, the API docs

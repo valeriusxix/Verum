@@ -17,7 +17,7 @@ contract VerumRegistry {
     }
 
     struct Milestone {
-        bytes32 metric;
+        bytes32 metric; // plain name, UTF-8, zero right-padded (e.g. "organic_wau"); 0 = unset
         uint256 target;
         uint32 windowDays;
         uint64 reachedAt;
@@ -56,6 +56,8 @@ contract VerumRegistry {
         uint32 txCount
     );
     event Watched(uint256 indexed id, address indexed user, bool on);
+    /// @dev Added 17 Nov 2026 (not in spec §6) so the listener can follow per-project owner changes.
+    event OwnershipTransferred(uint256 indexed id, address indexed previousOwner, address indexed newOwner);
 
     // ---------------------------------------------------------------- errors
 
@@ -179,6 +181,19 @@ contract VerumRegistry {
         id;
         on;
         revert NotImplemented(); // Day 2
+    }
+
+    // ---------------------------------------------------------------- views
+    // Added 17 Nov 2026 (not in spec §6): `_contracts` and `_milestones` are internal, so the
+    // auto-generated getters can't return the whole array.
+
+    function getContracts(uint256 id) external view returns (address[] memory) {
+        return _contracts[id];
+    }
+
+    /// @dev `metric` is the plain name as bytes32 (UTF-8, zero right-padded), e.g. "organic_wau".
+    function getMilestones(uint256 id) external view returns (Milestone[3] memory) {
+        return _milestones[id];
     }
 
     // ---------------------------------------------------------------- admin
