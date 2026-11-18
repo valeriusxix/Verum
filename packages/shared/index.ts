@@ -1,5 +1,6 @@
 export * from './chains';
 export * from './addresses';
+export * from './bech32';
 export * from './metrics';
 export * from './limits';
 export * from './schemas';

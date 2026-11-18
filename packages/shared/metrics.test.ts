@@ -45,6 +45,8 @@ test('schemas: slug and address rules', () => {
     addressSchema.parse('0x3F43DA82eC9A4f5285F10FaF1F26EcA7319E5DA5'),
     '0x3f43da82ec9a4f5285f10faf1f26eca7319e5da5',
   );
+  assert.ok(addressSchema.safeParse('0x3f43da82ec9a4f5285f10faf1f26eca7319e5da5').success);
+  assert.ok(!addressSchema.safeParse('0x3f43DA82eC9A4f5285F10FaF1F26EcA7319E5DA5').success); // bad EIP-55
 });
 
 test('schemas: txlist envelope accepts the live empty and error shapes', () => {

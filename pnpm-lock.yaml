@@ -32,6 +32,9 @@ importers:
 
   packages/shared:
     dependencies:
+      '@scure/base':
+        specifier: ^1.2.6
+        version: 1.2.6
       viem:
         specifier: ^2.57.20
         version: 2.57.20(typescript@5.9.3)(zod@4.6.7)

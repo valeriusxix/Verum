@@ -115,7 +115,9 @@ Use these. Don't re-guess them.
 | RPC | `https://rpc1mainnet.qie.digital/` … `rpc5mainnet` (rpc1–3 tested, ~0.9–1.2 s per call) |
 | Explorer | `https://mainnet.qie.digital` — **Blockscout backend v7.0.2** |
 | Avg block time (explorer stat) | ~3.6 s |
-| Native symbol | QIE (18 decimals) |
+| Native symbol | QIE (18 decimals); Cosmos base denom `aqie` |
+| Stack | **Cosmos SDK + Ethermint** (CometBFT `0.38.12`, Cosmos network id `qie_1990-1`). Keys are `eth_secp256k1`. |
+| Native address format | bech32 prefix **`qie`** (`qie1…`); validators use `qievaloper1…`. Source: `https://validators.qie.digital/cosmos/auth/v1beta1/bech32` → `{"bech32_prefix":"qie"}`. **`qie1…` and `0x…` are the same account from the same key**: one 20-byte address in two encodings, with an identical balance via Cosmos REST and `eth_getBalance` (verified 18 Nov). Keplr and the **testnet faucet** use the `qie1…` form, so convert; never generate a new key. Converter: `packages/shared/bech32.ts`. The docs' sample `qied1…` address has an invalid checksum and the wrong prefix; ignore it. |
 | Chain activity at test time | 539,097 total txs · 158,035 addresses · ~1,600–1,800 txs/day |
 | Contracts | 830 total, 140 verified |
 | Testnet (dev only) | chain `1983`, `https://rpc1testnet.qie.digital/`, faucet `qie.digital/faucet`, explorer `https://testnet.qie.digital` (Blockscout v7.0.2, checked 16 Nov) |
@@ -522,6 +524,8 @@ Commit at least daily with real messages. The rules ban recycled code and "AI-ge
 - Never trust the client for metrics; the API reads only from Postgres.
 - Secrets (`ATTESTER_PK`, `DATABASE_URL`) only in env. Never commit `.env`. Ship `.env.example`.
 - Addresses: store lowercase, display checksummed (viem `getAddress`), truncated `0x1234…abcd` with copy on click.
+  - Validate with strict `isAddress`: viem's `getAddress` silently re-checksums a bad mixed-case address instead of rejecting it.
+  - Inputs (omnibox, register form) accept both `0x…` and `qie1…` (`qieAddressInputSchema`); storage and the API stay 0x.
 - Time: store UTC; display in the viewer's local time with UTC on hover.
 - Each metric has a unit test with a fixture of real txs (save a JSON fixture from mainnet on day 3).
 - Lighthouse mobile ≥ 85 performance on `/` and `/p/:slug` before Nov 24.

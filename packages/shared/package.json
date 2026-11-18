@@ -9,9 +9,10 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p .",
-    "test": "tsx --test addresses.test.ts metrics.test.ts"
+    "test": "tsx --test addresses.test.ts bech32.test.ts metrics.test.ts"
   },
   "dependencies": {
+    "@scure/base": "^1.2.6",
     "viem": "^2.57.20",
     "zod": "^4.6.7"
   }

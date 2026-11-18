@@ -6,17 +6,36 @@
  *  - Row DTOs: mirror the Postgres schema in §5.2. `numeric` columns travel as decimal strings
  *    (no float precision loss on wei / volumes).
  */
+import { isAddress } from 'viem';
 import { z } from 'zod';
 import { MILESTONE_METRICS, MILESTONE_OPS, WALLET_FLAGS } from './metrics';
 import { API_DEFAULT_PAGE_LIMIT, MAX_CONTRACTS_PER_PROJECT, SLUG_PATTERN } from './limits';
+import { normalizeQieAddress } from './bech32';
 
 // ---------------------------------------------------------------- primitives
 
-/** Accepts any-case hex address; outputs lowercase (store lowercase, §12). */
+/**
+ * 0x address: all-lowercase, all-uppercase or valid EIP-55 (a bad mixed-case checksum is rejected).
+ * Outputs lowercase (store lowercase, §12).
+ */
 export const addressSchema = z
   .string()
   .regex(/^0x[0-9a-fA-F]{40}$/, 'expected a 0x-prefixed 20-byte hex address')
+  .refine((s) => isAddress(s, { strict: true }), 'invalid EIP-55 checksum')
   .transform((s) => s.toLowerCase() as `0x${string}`);
+
+/**
+ * User input in either QIE form, `0x…` or native `qie1…` (Keplr, faucet). Outputs lowercase 0x.
+ * Use for the omnibox / register form; keep `addressSchema` for API params and stored data.
+ */
+export const qieAddressInputSchema = z.string().transform((s, ctx) => {
+  const a = normalizeQieAddress(s);
+  if (a === null) {
+    ctx.addIssue({ code: 'custom', message: 'expected a 0x… or qie1… address' });
+    return z.NEVER;
+  }
+  return a;
+});
 
 export const bytes32Schema = z
   .string()
