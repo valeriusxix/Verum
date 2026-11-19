@@ -10,7 +10,12 @@ contract on QIE mainnet.
 
 > QIE Blockchain Hackathon 3.0 (Mainnet Edition) · Track 5: Developer Infrastructure & Tooling
 
-**Status:** Day 1 scaffold. Nothing is deployed yet.
+**Status:** Day 2. `VerumRegistry` is live and verified on testnet; mainnet deploy is Day 9.
+
+| Network | VerumRegistry |
+|---|---|
+| Testnet (1983) | [`0xF5B151fCcf3C4b79345643f634f29A584d461390`](https://testnet.qie.digital/address/0xF5B151fCcf3C4b79345643f634f29A584d461390) (verified) |
+| Mainnet (1990) | _TBD_ |
 
 ---
 
@@ -69,9 +74,16 @@ pnpm dev:web | dev:api | dev:worker
 ```sh
 cd contracts
 forge build && forge test
-# testnet first (chain 1983), then mainnet (chain 1990). Use a keystore, not a raw key:
-forge script script/DeployVerumRegistry.s.sol --rpc-url qie_testnet --account <keystore> --broadcast
+# testnet first (chain 1983), then mainnet (chain 1990). Use a keystore, not a raw key.
+# PowerShell (run inside contracts/):
+$env:ATTESTER_ADDRESS = "0x…"
+forge script script/DeployVerumRegistry.s.sol --rpc-url qie_testnet --account verum-deployer `
+  --broadcast --verify --verifier blockscout --verifier-url https://testnet.qie.digital/api/
 ```
+
+Forge reads `.env` only from `contracts/`, so set `ATTESTER_ADDRESS` in the shell. The testnet faucet wants
+the deployer's native `qie1…` address. It's the same account as the `0x…` one, so convert it with
+`toQieBech32` from `@verum/shared`.
 
 QIE supports the **Shanghai** EVM (PUSH0) but **not Cancun** (TSTORE/MCOPY), so `foundry.toml` pins
 `evm_version = "shanghai"`.
