@@ -20,6 +20,8 @@ export const METRIC_DEFINITIONS = [
       "Distinct `from_addr` on ext txs to the project's contracts, plus distinct `from_addr` on int txs " +
       'where the top-level tx sender is an EOA. Token transfers *to* the contract count the sender.',
   },
+  // Implementation (19 Nov 2026): for int txs the counted wallet is `txs.origin_addr`, the top-level
+  // sender (always an EOA), because an int row's own `from_addr` is the calling contract.
   {
     id: 'dau_wau_mau',
     label: 'DAU / WAU / MAU',

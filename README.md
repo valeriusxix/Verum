@@ -69,6 +69,20 @@ pnpm test                     # shared unit tests + forge tests
 pnpm dev:web | dev:api | dev:worker
 ```
 
+### Worker (indexer)
+
+```sh
+pnpm --filter @verum/worker migrate                         # apply worker/migrations/*.sql
+pnpm --filter @verum/worker track <0x…|qie1…> [--project <slug> --name "Name"] [--label x]
+pnpm --filter @verum/worker start --once                    # one sync pass (waits for backfills)
+pnpm --filter @verum/worker start                           # sync every 2 min
+```
+
+All explorer calls go through one client: at most 3 req/s globally, 3 retries with jittered exponential
+backoff, 30 s timeout, one log line per request. New contracts backfill first (max 2 at once). After that,
+each pass re-reads the last 20 blocks inside a single transaction to absorb re-orgs. The top-level senders of
+internal transactions come from batched JSON-RPC calls spread across rpc1–5.
+
 ### Contracts
 
 ```sh

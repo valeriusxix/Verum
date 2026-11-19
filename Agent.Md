@@ -185,7 +185,10 @@ Use these. Don't re-guess them.
 
 ### 5.1 Ingestion (worker)
 For each tracked contract:
-1. **Backfill**: loop `txlist` with `startblock = lastBlock + 1`, `offset=10000`, `sort=asc` until fewer than 10,000 rows return. Same for `txlistinternal`, and `tokentx` filtered to QUSDC. Strip `input` down to its 4-byte selector before storing.
+1. **Backfill**: loop `txlist` with `startblock = lastBlock` (amended 19 Nov: **not** `+ 1`, which loses the rest of a block when a full page ends mid-block; the PK drops the re-read duplicates, and if a whole full page is one block the cursor moves to +1 with a warning), `offset=10000`, `sort=asc`, until fewer than 10,000 rows return. Same for `txlistinternal`, and `tokentx` filtered to QUSDC (`tokentx` requires `address`; filter with `contractaddress`). Strip `input` down to its 4-byte selector before storing.
+   - **Sync ceiling** = the explorer's indexed head (`/api/v2/blocks?type=block`, ~1 block behind the RPC), passed as `endblock` and fixed for the run. Never mark a block synced before the explorer has indexed it.
+   - **Internal-tx origins** (19 Nov): `txlistinternal` rows only carry the immediate caller. Store the top-level sender in `txs.origin_addr`, fetched with batched `eth_getTransactionByHash`. All 5 RPCs accept batches but process the items serially (100-item batch: 3–13 s), so use batches of 25 spread across all 5 RPCs in parallel (100 lookups ≈ 1.8 s).
+   - **Data caveat** (checked 19 Nov): `/api/v2/main-page/indexing-status` reports `finished_indexing: false`, `indexed_blocks_ratio: 0.98`. Txs in un-indexed historical blocks are missing from `txlist`. Show this caveat on the API docs page.
 2. **Incremental**: every 2 min, same call from `last_synced_block + 1`.
 3. **Dedup** on `(chain_tx_hash, kind, log_index)`. Handle re-orgs by re-reading the last 20 blocks each sync.
 4. **Concurrency**: one global queue, max 3 req/s, max 2 contracts backfilling at once. New registrations jump the queue.
@@ -202,9 +205,13 @@ contracts(address text pk, project_id int references projects, label text,
 
 txs(hash text, kind text check (kind in ('ext','int','token')), log_index int default -1,
     contract text, block bigint, ts timestamptz, from_addr text, to_addr text,
+    origin_addr text,  -- top-level tx sender: ext = from_addr, int = via RPC, token = null (19 Nov)
     selector text, value_wei numeric, token text, token_amount numeric,
     success bool, gas_used bigint,
-    primary key (hash, kind, log_index))
+    primary key (hash, kind, log_index, contract))
+    -- 19 Nov: `contract` added to the PK. One internal call / QUSDC transfer between two tracked
+    -- contracts appears in both contracts' explorer lists; without it one project loses the row.
+    -- log_index = trace `index` for int rows, `logIndex` for token rows, -1 for ext.
 create index on txs (contract, ts);
 create index on txs (from_addr);
 
@@ -227,7 +234,12 @@ milestones(project_id int, idx smallint, metric text, op text, target numeric,
            primary key (project_id, idx))
 
 price_ticks(ts timestamptz pk, qie_usd numeric, source text)
+
+sync_progress(contract text pk references contracts, status text  -- queued|backfilling|synced|error
+              cursor_block bigint, head_block bigint, progress real, error text, updated_at timestamptz)
+  -- 19 Nov: backs GET /v1/projects/:slug/sync
 ```
+Migrations live in `worker/migrations/*.sql` (`pnpm --filter @verum/worker migrate`).
 
 ### 5.3 Organic-signal filter (the differentiator)
 Show **both** raw and organic numbers everywhere. Never hide raw. Every flagged wallet shows its reason on hover.
@@ -247,6 +259,7 @@ Document the formula on the page. Transparency is the point.
 
 ### 5.4 Metric definitions (put these in `/packages/shared/metrics.ts` and on the API docs page)
 - **Unique wallets**: distinct `from_addr` on ext txs to the project's contracts, plus distinct `from_addr` on int txs where the top-level tx sender is an EOA. Token transfers *to* the contract count the sender.
+  - Implementation note (19 Nov): an int row's `from_addr` is the immediate caller, i.e. a contract. The wallet counted is the top-level sender, `origin_addr`. Every top-level sender is an EOA.
 - **DAU / WAU / MAU**: rolling 1 / 7 / 30-day unique wallets (raw and organic).
 - **New vs returning**: a wallet is new on its first day with the project.
 - **Retention Dn**: share of a cohort's wallets active again on any day in `[cohort_day+n, cohort_day+n+1)` for D1, and within days 7–13 for D7, days 30–36 for D30.

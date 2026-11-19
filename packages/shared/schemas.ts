@@ -109,7 +109,57 @@ export const explorerTxlistRowSchema = z.looseObject({
 export type ExplorerTxlistRow = z.infer<typeof explorerTxlistRowSchema>;
 export const explorerTxlistResponseSchema = explorerV1Envelope(explorerTxlistRowSchema);
 
+/** `action=txlistinternal` row. Fields cross-checked live 19 Nov 2026 (not listed in §4.2). */
+export const explorerInternalTxRowSchema = z.looseObject({
+  blockNumber: uintString,
+  timeStamp: uintString,
+  transactionHash: z.string(),
+  /** Trace index within the parent tx: the row's unique key together with the hash. */
+  index: uintString,
+  from: z.string(),
+  /** "" on `type: create`; then `contractAddress` holds the new contract. */
+  to: z.string(),
+  value: uintString,
+  contractAddress: z.string(),
+  input: z.string(),
+  type: z.string(),
+  callType: z.string(),
+  gasUsed: z.string(),
+  isError: z.enum(['0', '1']),
+});
+export type ExplorerInternalTxRow = z.infer<typeof explorerInternalTxRowSchema>;
+export const explorerInternalTxResponseSchema = explorerV1Envelope(explorerInternalTxRowSchema);
+
+/** `action=tokentx` row (needs `address`; filter with `contractaddress`). Cross-checked live 19 Nov 2026. */
+export const explorerTokenTxRowSchema = z.looseObject({
+  blockNumber: uintString,
+  timeStamp: uintString,
+  hash: z.string(),
+  logIndex: uintString,
+  from: z.string(),
+  to: z.string(),
+  /** Raw token units (QUSDC: 6 decimals). */
+  value: uintString,
+  /** The token contract. */
+  contractAddress: z.string(),
+  tokenDecimal: uintString,
+  tokenSymbol: z.string(),
+  /** Input of the top-level tx. */
+  input: z.string(),
+  gasUsed: z.string(),
+});
+export type ExplorerTokenTxRow = z.infer<typeof explorerTokenTxRowSchema>;
+export const explorerTokenTxResponseSchema = explorerV1Envelope(explorerTokenTxRowSchema);
+
 // ---------------------------------------------------------------- explorer: v2 (Blockscout REST)
+
+/**
+ * `GET /api/v2/blocks?type=block`: newest indexed block first. The explorer's indexed head is the
+ * sync ceiling (it trails the RPC head by ~1 block), so nothing is marked synced before the explorer has it.
+ */
+export const explorerBlocksSchema = z.looseObject({
+  items: z.array(z.looseObject({ height: z.number().int(), timestamp: z.string() })).min(1),
+});
 
 /** `GET /api/v2/addresses/:addr`. Use `creator_address_hash` for ownership checks (§4.2). */
 export const explorerAddressSchema = z.looseObject({
