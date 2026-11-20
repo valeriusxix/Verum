@@ -8,6 +8,7 @@
  */
 import { createPublicClient, fallback, http, type Hash, type PublicClient } from 'viem';
 import { NETWORKS, type QieNetwork } from '@verum/shared';
+import { selectorOf } from './ingest/normalize';
 
 export const ORIGIN_BATCH_SIZE = 25;
 
@@ -27,13 +28,20 @@ export const createRpc = (network: QieNetwork): Rpc => {
   };
 };
 
+export interface TopLevelTx {
+  from: string;
+  nonce: number;
+  /** 4-byte selector of the top-level calldata ('0x' for a plain transfer). */
+  selector: string;
+}
+
 /**
- * hash -> lowercase `from` of the top-level tx. One worker per RPC pulls batches off a shared queue;
+ * hash -> lowercase `from` and `nonce` of the top-level tx. One worker per RPC pulls batches off a shared queue;
  * a batch that fails on one node is retried once by the next worker. Hashes that still fail are
  * left out (the caller retries them on the next sync).
  */
-export const fetchOrigins = async (rpc: Rpc, hashes: readonly string[]): Promise<Map<string, string>> => {
-  const out = new Map<string, string>();
+export const fetchOrigins = async (rpc: Rpc, hashes: readonly string[]): Promise<Map<string, TopLevelTx>> => {
+  const out = new Map<string, TopLevelTx>();
   const queue: { hashes: string[]; tries: number }[] = [];
   for (let i = 0; i < hashes.length; i += ORIGIN_BATCH_SIZE) {
     queue.push({ hashes: hashes.slice(i, i + ORIGIN_BATCH_SIZE), tries: 0 });
@@ -45,7 +53,11 @@ export const fetchOrigins = async (rpc: Rpc, hashes: readonly string[]): Promise
       const res = await Promise.allSettled(job.hashes.map((hash) => client.getTransaction({ hash: hash as Hash })));
       const failed: string[] = [];
       res.forEach((r, j) => {
-        if (r.status === 'fulfilled') out.set(job.hashes[j]!, r.value.from.toLowerCase());
+        if (r.status === 'fulfilled') out.set(job.hashes[j]!, {
+          from: r.value.from.toLowerCase(),
+          nonce: r.value.nonce,
+          selector: selectorOf(r.value.input),
+        });
         else failed.push(job.hashes[j]!);
       });
       if (failed.length > 0 && job.tries === 0) queue.push({ hashes: failed, tries: 1 });

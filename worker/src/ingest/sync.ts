@@ -216,14 +216,17 @@ const incremental = async (
   }
 
   await d.sql.begin(async (tx) => {
-    // Keep origins we already paid for.
-    const known = await tx<{ hash: string; origin_addr: string }[]>`
-      select distinct hash, origin_addr from txs
-      where contract = ${address} and kind = 'int' and block >= ${from} and origin_addr is not null`;
-    const originByHash = new Map(known.map((k) => [k.hash, k.origin_addr]));
-    const rows = [...fresh.values()].map((r) =>
-      r.kind === 'int' && r.origin_addr === null ? { ...r, origin_addr: originByHash.get(r.hash) ?? null } : r,
-    );
+    // Keep top-level sender + nonce we already paid for (int rows carry both from the RPC lookup).
+    const known = await tx<{ hash: string; origin_addr: string; nonce: string | null; selector: string | null }[]>`
+      select distinct on (hash) hash, origin_addr, nonce::text as nonce, selector from txs
+      where contract = ${address} and kind = 'int' and block >= ${from} and origin_addr is not null and selector is not null`;
+    const byHash = new Map(known.map((k) => [k.hash, k]));
+    const rows = [...fresh.values()].map((r) => {
+      const k = r.kind !== 'ext' && r.origin_addr === null ? byHash.get(r.hash) : undefined;
+      if (!k) return r;
+      const nonce = k.nonce === null ? null : Number(k.nonce);
+      return { ...r, origin_addr: k.origin_addr, nonce, selector: r.kind === 'int' ? k.selector : r.selector };
+    });
 
     await tx`delete from txs where contract = ${address} and block >= ${from}`;
     await insertRows(tx, rows);
@@ -236,9 +239,13 @@ const incremental = async (
 };
 
 /**
- * Top-level senders for internal txs (decided 19 Nov 2026), via batched JSON-RPC. One lookup per
- * hash also fills every other tracked contract's rows for that tx. Failures are logged and retried
- * on the next sync; they never fail the sync itself.
+ * Top-level sender + nonce (decided 19–20 Nov 2026), via batched JSON-RPC:
+ *  - int rows: origin_addr and nonce (an int row's own `from` is the calling contract);
+ *  - token rows: origin_addr and nonce, so a tx that touches the project only through a transfer
+ *    (e.g. QUSDC leaving a pair in a swap routed elsewhere) still counts for the wallet that sent it;
+ *  - ext rows written before the nonce column existed: nonce (new ext rows get it from txlist).
+ * One lookup per hash fills every tracked contract's ext/int rows for that tx. Failures are
+ * logged and retried on the next sync; they never fail the sync itself.
  */
 export const resolveOrigins = async (d: SyncDeps, address: string): Promise<number> => {
   let resolved = 0;
@@ -246,21 +253,22 @@ export const resolveOrigins = async (d: SyncDeps, address: string): Promise<numb
     for (;;) {
       const pending = await d.sql<{ hash: string }[]>`
         select distinct hash from txs
-        where contract = ${address} and kind = 'int' and origin_addr is null
+        where contract = ${address} and (origin_addr is null or nonce is null or (kind = 'int' and selector is null))
         limit ${ORIGIN_SCAN_LIMIT}`;
       if (pending.length === 0) break;
 
       const origins = await fetchOrigins(d.rpc, pending.map((p) => p.hash));
       if (origins.size === 0) {
-        d.log.warn('origin lookup returned nothing', { address, pending: pending.length });
+        d.log.warn('top-level lookup returned nothing', { address, pending: pending.length });
         break;
       }
-      const pairs = [...origins.entries()];
+      const values = [...origins.entries()].map(([hash, t]) => [hash, t.from, t.nonce, t.selector]);
       await d.sql`
-        update txs set origin_addr = v.origin
-        from (values ${d.sql(pairs)}) as v (hash, origin)
-        where txs.hash = v.hash and txs.kind = 'int' and txs.origin_addr is null`;
-      resolved += pairs.length;
+        update txs set origin_addr = coalesce(txs.origin_addr, v.origin), nonce = (v.nonce)::bigint,
+          selector = case when txs.kind = 'int' then v.selector else txs.selector end
+        from (values ${d.sql(values)}) as v (hash, origin, nonce, selector)
+        where txs.hash = v.hash and (txs.origin_addr is null or txs.nonce is null or (txs.kind = 'int' and txs.selector is null))`;
+      resolved += values.length;
       if (origins.size < pending.length) break; // unknown hashes: retry next sync, don't spin
     }
   } catch (err) {

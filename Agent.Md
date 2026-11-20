@@ -93,6 +93,8 @@ Token launch, paid tiers, mobile app, multichain.
 ```
 
 - **Hosting**: web on Vercel; api + worker as one Node service on Railway or Render (needs long-running jobs; a backfill can take minutes, which breaks serverless time limits). Postgres on Neon or Supabase free tier.
+  - **Put the worker in the database's region.** Postgres is Supabase `eu-west-1`, so use EU West. Measured 20 Nov from a dev machine far from the DB: loading one project's 23k rows took ~90 s at ~100 KB/s, and long transfers dropped connections.
+  - The rollup trims columns, de-dupes in SQL, retries only its write, and skips unchanged projects (recomputing at least hourly). Even so, co-location keeps every cycle to seconds.
 - **Monorepo** (pnpm workspaces):
   ```
   /contracts   Foundry project (VerumRegistry.sol + tests + deploy script)
@@ -127,7 +129,7 @@ Use these. Don't re-guess them.
 | Endpoint | Result |
 |---|---|
 | `GET /api?module=account&action=txlist&address=X&startblock=N&sort=asc&page=1&offset=10000` | **Best for bulk.** 10,000 rows in ~5.7 s (~10 MB, mostly `input`). Pages past 10k work (page=3 tested), but **paginate by `startblock` cursor**, not page number. Fields: blockNumber, timeStamp, hash, from, to, value, gasUsed, gasPrice, isError, txreceipt_status, input, nonce, contractAddress. |
-| `GET /api?module=account&action=txlistinternal&address=X` | Works. Needed for calls routed through proxies, Safes or routers. |
+| `GET /api?module=account&action=txlistinternal&address=X` | Works. Needed for calls routed through proxies, Safes or routers. **Its `input` field is NOT the internal call's calldata** (verified 20 Nov: a tx whose real calldata starts `0x45fd0465` has internal rows with input `0x000000…`). Never derive a method from it; take the top-level tx's selector from RPC instead. |
 | `GET /api?module=account&action=tokentx&address=X` | Use for ERC-20 flows (QUSDC volume). |
 | `GET /api?module=logs&action=getLogs&fromBlock=A&toBlock=latest&address=X` | Works (955 logs returned in one call). |
 | JSON-RPC `eth_getLogs` over a 10,000-block range | Works. Use for registry events. |
@@ -158,6 +160,12 @@ Use these. Don't re-guess them.
 | Gold / USD (XAUt) | `0x9aD0199a67588ee293187d26bA1BE61cb07A214c` |
 
 **Staleness warning:** at test time the QIE/USDT feed's `updatedAt` was ~19 h old while the others were 3–5 min old. Rule: use the oracle if `updatedAt` is younger than 6 h, otherwise fall back to `/api/v2/stats.coin_price`, and show which source was used ("price via QIE Oracle" / "price via explorer").
+
+**History (checked 20 Nov):**
+- **Rounds:** QIE/USDT has 20,277+ rounds with plain sequential ids, and `getRoundData` works on old rounds. Round 1 is 2025-08-27; nothing exists before it.
+- **Bad windows:** 24 Jun – 8 Jul 2026 reports ~0.02 against a real ~0.13–0.16 (~9,000 bad rounds), and 2026-01-09 has a one-off 0.030.
+- **Explorer:** `/api/v2/stats/charts/market` has `closing_price: null` for every past day, so it can't fill history.
+- **Decision (20 Nov):** price history comes from oracle rounds from **#19,993 (2026-10-01)** on, all checked clean. Days before have **no USD volume (null)**. Day-price rule: `IMPLEMENTATION_NOTES` in `packages/shared/metrics.ts`.
 
 ### 4.4 Tokens
 - **QUSDC (real)**: `0x3F43DA82eC9A4f5285F10FaF1F26EcA7319E5DA5`, 6 decimals, verified, 83 holders.
@@ -244,6 +252,14 @@ sync_progress(contract text pk references contracts, status text  -- queued|back
 ```
 Migrations live in `worker/migrations/*.sql` (`pnpm --filter @verum/worker migrate`).
 
+Additions on 20 Nov (`002_metrics.sql`, `003_int_selectors.sql`):
+- **`txs.nonce`:** the top-level tx nonce sent by `origin_addr`; 0 marks the wallet's first-ever tx. Used for burst and fresh_single.
+- **Token rows** also get `origin_addr` and `nonce` via RPC.
+- **`txs.selector`:** for int and token rows, the selector of the top-level tx (what the user called).
+- **`daily_metrics`:** `usd_volume` is nullable (no price means null, never $0). Adds `qie_usd`, `price_source` and `price_day`.
+- **`cohorts.size`** and **`price_ticks.round_id`** (unique).
+- **`wallet_chain_stats`** (eth_getTransactionCount cache, 24 h) and **`project_stats`** (current headline numbers, rewritten by each rollup).
+
 ### 5.3 Organic-signal filter (the differentiator)
 Show **both** raw and organic numbers everywhere. Never hide raw. Every flagged wallet shows its reason on hover.
 
@@ -255,6 +271,15 @@ Show **both** raw and organic numbers everywhere. Never hide raw. Every flagged 
 | `fresh_single` | Wallet's only chain activity ever is a single tx to this project. | Soft flag: counted, but down-weighted in the Verum score. |
 
 **Organic wallet** = not `team`, not `bot`, not `burst`.
+
+**Implementation decisions (20 Nov, with the owner):** recorded as `IMPLEMENTATION_NOTES` in `packages/shared/metrics.ts` and shown on the API docs page.
+- **Tx count** = distinct tx hashes.
+- **Volume** = inflow from outside the project, counted once per swap.
+- **Verum score** uses the last 30 days. D7 is size-weighted over cohorts whose day 7–13 window has passed. Until one exists, the score is **provisional**: the other three terms rescaled to 0–100.
+- **Retention cohorts** use organic wallets; **new/returning** use all wallets.
+- **Bot and burst** rules use the wallet's activity with the project.
+- **Burst and fresh_single** use the top-level nonce (0 = first-ever tx).
+- **Verification:** every metric is checked in `worker/test/metrics-mainnet.test.ts` against values from independent SQL on a frozen mainnet state. Rule thresholds are checked in `metrics-rules.test.ts`.
 
 **Verum score (0–100)** shown per project:
 `40·(organic/raw unique wallets) + 25·D7 retention + 20·(1 − top-10 wallet tx share) + 15·(1 − fresh_single share)`, clamped to 0–100.

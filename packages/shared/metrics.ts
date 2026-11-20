@@ -172,6 +172,71 @@ export const MAX_MILESTONES = 3;
 export const WINNERS_DATE_UTC = '2026-12-10';
 export const MILESTONE_CLOCK_DAYS = 90;
 
+// ---------------------------------------------------------------- implementation rules (20 Nov 2026)
+// Decided with the project owner on 20 Nov 2026. Shown on the API docs page next to §5.4.
+
+/** Verum score, organic share, concentration and fresh_single share use the last 30 days. */
+export const SCORE_WINDOW_DAYS = 30;
+
+/**
+ * Oracle history is used from this UTC day on. Earlier, the QIE/USDT feed has a malfunction
+ * (24 Jun – 8 Jul 2026, ~0.02 vs a real ~0.13–0.16) and doesn't exist before 27 Aug 2025.
+ * Days before this have no USD volume (null), never a guessed one.
+ */
+export const PRICE_HISTORY_START_DAY = '2026-10-01';
+/** First QIE/USDT round on/after PRICE_HISTORY_START_DAY (2026-10-01T06:26:43Z), verified on-chain. */
+export const PRICE_HISTORY_START_ROUND = 19_993;
+/** A day with no price tick reuses the most recent earlier day's price for at most this many days. */
+export const PRICE_CARRY_FORWARD_DAYS = 7;
+
+export const IMPLEMENTATION_NOTES = [
+  {
+    id: 'wallet_attribution',
+    text:
+      'Every tx touching the project counts for its top-level sender (the wallet that signed it): for an ext tx that is ' +
+      'its sender; for an internal call or a token transfer it is looked up via RPC, since those rows come from contracts. ' +
+      'A QUSDC transfer into the project from outside also counts for the transfer sender (§5.4).',
+  },
+  {
+    id: 'tx_count',
+    text: 'Tx count = distinct transaction hashes touching any of the project’s contracts (one swap through router → pair counts once).',
+  },
+  {
+    id: 'success',
+    text: 'A tx succeeds if its ext row(s) succeeded; for txs reaching the project only via internal calls or transfers, if any of those rows succeeded.',
+  },
+  {
+    id: 'volume',
+    text:
+      'Native volume = QIE entering the project from outside: successful ext value to a project contract plus successful internal ' +
+      'value from a non-project address. QUSDC volume = QUSDC transferred into the project from outside. Each swap counts once, on its input side.',
+  },
+  {
+    id: 'price',
+    text:
+      "A day's QIE price = median of that day's QIE Oracle rounds; if none, median of explorer price ticks; if none, the most recent " +
+      `earlier day's price for up to ${PRICE_CARRY_FORWARD_DAYS} days. No price before ${PRICE_HISTORY_START_DAY}. USD volume = QIE × price + QUSDC; ` +
+      'a day with native volume but no price has no USD volume.',
+  },
+  {
+    id: 'cohorts',
+    text:
+      'Retention cohorts use organic wallets; a wallet’s cohort is its first day with the project. Dn stays empty until its whole window has passed. ' +
+      'New vs returning use all wallets, so new + returning = Recorded DAU.',
+  },
+  {
+    id: 'score',
+    text:
+      `Verum score inputs cover the last ${SCORE_WINDOW_DAYS} days; D7 is the cohort-size-weighted mean over cohorts whose day 7–13 window has passed. ` +
+      'Until such a cohort exists the score is provisional: the other three terms rescaled to 0–100.',
+  },
+  {
+    id: 'organic_filter_scope',
+    text:
+      'Bot and burst rules look at the wallet’s activity with this project. Burst and fresh_single use the top-level tx nonce: nonce 0 = the wallet’s first-ever chain tx.',
+  },
+] as const;
+
 // ---------------------------------------------------------------- naming (§0)
 
 /** Raw numbers are "Recorded", filtered numbers are "Verum". Snapshots are "Seals". */

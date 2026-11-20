@@ -16,8 +16,10 @@ export interface TxRow {
   ts: Date;
   from_addr: string;
   to_addr: string | null;
-  /** Top-level tx sender: ext = from; int = resolved later via RPC; token = null (§5.4 counts the transfer sender). */
+  /** Top-level tx sender: ext = from; int and token = resolved later via RPC. */
   origin_addr: string | null;
+  /** Nonce of the top-level tx, sent by origin_addr (0 = that wallet's first-ever tx). ext: from txlist; int/token: RPC. */
+  nonce: number | null;
   selector: string | null;
   value_wei: string;
   token: string | null;
@@ -36,6 +38,7 @@ export const TX_COLUMNS = [
   'from_addr',
   'to_addr',
   'origin_addr',
+  'nonce',
   'selector',
   'value_wei',
   'token',
@@ -67,6 +70,7 @@ export const normalizeExternal = (r: ExplorerTxlistRow, contract: string): TxRow
     from_addr: lc(r.from),
     to_addr: addrOrNull(r.to),
     origin_addr: lc(r.from),
+    nonce: Number(r.nonce),
     // Creation calldata is init code, not a method call.
     selector: creation ? null : selectorOf(r.input),
     value_wei: r.value,
@@ -88,7 +92,10 @@ export const normalizeInternal = (r: ExplorerInternalTxRow, contract: string): T
   from_addr: lc(r.from),
   to_addr: r.to === '' ? addrOrNull(r.contractAddress) : lc(r.to),
   origin_addr: null,
-  selector: r.type === 'create' ? null : selectorOf(r.input),
+  nonce: null,
+  // txlistinternal `input` is not the internal call's calldata (verified 20 Nov 2026). The
+  // top-level tx's selector is filled in later by the RPC lookup, together with origin and nonce.
+  selector: null,
   value_wei: r.value,
   token: null,
   token_amount: null,
@@ -106,6 +113,7 @@ export const normalizeTokenTransfer = (r: ExplorerTokenTxRow, contract: string):
   from_addr: lc(r.from),
   to_addr: addrOrNull(r.to),
   origin_addr: null,
+  nonce: null,
   selector: selectorOf(r.input),
   value_wei: '0',
   token: lc(r.contractAddress),

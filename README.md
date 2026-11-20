@@ -74,8 +74,9 @@ pnpm dev:web | dev:api | dev:worker
 ```sh
 pnpm --filter @verum/worker migrate                         # apply worker/migrations/*.sql
 pnpm --filter @verum/worker track <0x…|qie1…> [--project <slug> --name "Name"] [--label x]
-pnpm --filter @verum/worker start --once                    # one sync pass (waits for backfills)
-pnpm --filter @verum/worker start                           # sync every 2 min
+pnpm --filter @verum/worker start --once                    # sync (waits for backfills), prices, rollup
+pnpm --filter @verum/worker start                           # sync every 2 min; prices + rollup every 10 min
+pnpm --filter @verum/worker rollup [--force]                # prices + metrics only (--force: even if unchanged)
 ```
 
 All explorer calls go through one client: at most 3 req/s globally, 3 retries with jittered exponential
@@ -132,6 +133,10 @@ page and the dashboard all read from it.
 - **Volume**: sum of native `value` (QIE → USD at that day's price) + QUSDC token amounts.
 - **Success rate**: successful txs / all txs.
 - **Concentration**: share of txs from the top 10 wallets.
+
+How these are computed for multi-contract projects (tx count, inflow volume, day prices, the 30-day score
+window, cohort basis) is listed in `IMPLEMENTATION_NOTES` in the same file. Every metric has a test
+against real mainnet data, with expected values from independent SQL (`worker/test/metrics-mainnet.test.ts`).
 
 ### Organic filter
 
