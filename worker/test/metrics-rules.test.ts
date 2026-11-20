@@ -142,6 +142,21 @@ test('bot: clockwork timing (CV < 0.1 over ≥ 50 txs)', () => {
   assert.ok(Math.abs(intervalCv([0, 1, 4, 5, 8].map((x) => x * H)) - 0.5) < 1e-12);
 });
 
+test('bot: sustained volume, 1,000 txs within 7 days is a bot; 999 is not (20 Nov rule)', () => {
+  // Gaps alternate 60 s and 1,149.6 s: mean 604.8 s (= 7 days / 1,000), CV ≈ 0.9, and any 24 h holds
+  // at most ~143 txs, so neither §5.3 rule fires. 1,000 txs span 999 gaps ≈ 6.99 days.
+  const at = (k: number) => T0 + (Math.ceil(k / 2) * 60_000 + Math.floor(k / 2) * 1_149_600);
+  const a = Array.from({ length: 1000 }, (_, k) => tx(w(30), at(k)));
+  const b = Array.from({ length: 999 }, (_, k) => tx(w(31), at(k)));
+  const times = a.map((t) => t.ts);
+  assert.ok(intervalCv(times) > 0.8);
+  assert.ok(maxInWindow(times, 24 * H).count < 200);
+  assert.ok(times.at(-1)! - times[0]! < 7 * DAY_MS);
+  const f = flagsOf([...a, ...b]);
+  assert.match(f.get(w(30))?.get('bot') ?? '', /^1000 txs within 7 days/);
+  assert.equal(f.get(w(31))?.has('bot') ?? false, false);
+});
+
 test('known system address is a bot', () => {
   const sys = '0x725ccc2c1c86c9bc31a90020128d99ff8d351aa0';
   assert.match(flagsOf([tx(sys, T0)]).get(sys)?.get('bot') ?? '', /system/);
