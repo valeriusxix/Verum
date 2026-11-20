@@ -24,6 +24,7 @@ import {
   type SyncDto,
   type SyncStatus,
   type WalletFlag,
+  type PriceSource,
 } from '@verum/shared';
 import type { Sql } from './db';
 
@@ -39,8 +40,8 @@ export interface ListParams {
 
 export interface Repo {
   listProjects(p: ListParams): Promise<{ items: ProjectListItem[]; hasMore: boolean }>;
-  /** null when the slug doesn't exist. */
-  getProject(slug: string): Promise<ProjectDto | null>;
+  /** null when the slug doesn't exist. priceSource = source of the most recent priced day. */
+  getProject(slug: string): Promise<{ project: ProjectDto; priceSource: PriceSource | null } | null>;
   projectId(slug: string): Promise<number | null>;
   metrics(projectId: number, range: Range, today: string): Promise<DailyMetricDto[]>;
   cohorts(projectId: number): Promise<CohortDto[]>;
@@ -153,7 +154,9 @@ export const createPgRepo = (sql: Sql): Repo => {
         from contracts c left join sync_progress sp on sp.contract = c.address
         where c.project_id = ${p.id} order by c.address`;
       const [s] = await sql.unsafe(`select ${STATS_COLUMNS} from project_stats s where s.project_id = $1`, [p.id]);
-      return {
+      const [ps] = await sql`
+        select price_source from daily_metrics where project_id = ${p.id} and price_source is not null order by day desc limit 1`;
+      const project: ProjectDto = {
         slug: p.slug,
         name: p.name,
         track: num(p.track),
@@ -178,6 +181,7 @@ export const createPgRepo = (sql: Sql): Repo => {
         ),
         stats: s ? statsDto(s) : null,
       };
+      return { project, priceSource: (ps?.price_source as PriceSource | undefined) ?? null };
     },
 
     async projectId(slug) {

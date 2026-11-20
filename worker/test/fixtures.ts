@@ -39,17 +39,23 @@ interface RawFixture {
   chain_tx_counts: Record<string, number>;
 }
 
-let cached: MainnetFixture | undefined;
+const cache = new Map<string, MainnetFixture>();
 
-export const loadMainnetFixture = (): MainnetFixture => {
+/** QUSDC + QIEDEX fixture (see header). */
+export const loadMainnetFixture = (): MainnetFixture => loadFixture('mainnet-2026-11-20.json.gz');
+/** BROQPrediction fixture: the keeper that only the 7-day bot rule catches (20 Nov). */
+export const loadBroqFixture = (): MainnetFixture => loadFixture('broq-2026-11-20.json.gz');
+
+export const loadFixture = (file: string): MainnetFixture => {
+  const cached = cache.get(file);
   if (cached) return cached;
-  const path = fileURLToPath(new URL('./fixtures/mainnet-2026-11-20.json.gz', import.meta.url));
+  const path = fileURLToPath(new URL(`./fixtures/${file}`, import.meta.url));
   const raw = JSON.parse(gunzipSync(readFileSync(path)).toString('utf8')) as RawFixture;
   const rows = raw.rows.map((values) => {
     const r = Object.fromEntries(raw.columns.map((c, i) => [c, values[i]])) as Record<string, unknown>;
     return { ...r, block: Number(r.block), ts: new Date(r.ts as string) } as unknown as TxRow;
   });
-  cached = {
+  const fx: MainnetFixture = {
     meta: raw.meta,
     projects: raw.projects,
     contracts: raw.contracts,
@@ -57,5 +63,6 @@ export const loadMainnetFixture = (): MainnetFixture => {
     priceTicks: raw.price_ticks.map((t) => ({ ts: Date.parse(t.ts), qieUsd: Number(t.qie_usd), source: t.source })),
     chainTxCounts: new Map(Object.entries(raw.chain_tx_counts)),
   };
-  return cached;
+  cache.set(file, fx);
+  return fx;
 };

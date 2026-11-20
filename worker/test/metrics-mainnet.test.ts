@@ -4,7 +4,9 @@
  * 20 Nov 2026 (as_of 16:03:25Z), not from this code:
  *  - tx counts, wallets, windows, volumes: SQL over the raw rows;
  *  - flags: every §5.3 rule re-implemented in SQL (team, bot 24 h + interval CV + system address,
- *    burst sliding 10-min window, fresh_single with eth_getTransactionCount); 0 wallet-level differences;
+ *    burst sliding 10-min window, fresh_single with eth_getTransactionCount); 0 wallet-level differences.
+ *    Re-run after the 7-day sustained-volume rule was added (20 Nov evening): still 0 differences on all
+ *    projects; the rule changes no flag here (it only catches BROQ's keeper, see metrics-broq.test.ts);
  *  - organic counts and top-10 share: SQL using those SQL flags, not the rollup's.
  * The score is then checked against the §5.3 formula over those inputs.
  */

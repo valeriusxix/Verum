@@ -143,7 +143,7 @@ against real mainnet data, with expected values from independent SQL (`worker/te
 | Flag | Rule |
 |---|---|
 | `team` | Contract creator, project owner, or a self-declared team wallet |
-| `bot` | ≥ 200 txs in any 24 h, or inter-tx interval CV < 0.1 over ≥ 50 txs |
+| `bot` | ≥ 200 txs in any 24 h, or inter-tx interval CV < 0.1 over ≥ 50 txs, or ≥ 1,000 txs in any 7 days (catches keepers that pace themselves) |
 | `burst` | ≥ 20 first-ever-tx wallets in the same 10-min window, all hitting this contract |
 | `fresh_single` | Only chain activity ever is one tx to this project (soft flag) |
 

@@ -527,7 +527,7 @@ As built (Day 5, 20 Nov):
 - **Errors:** `{error:{code, message, issues?}}` with 400 (bad params), 404 (unknown project or Seal) and 500.
 - **List cursor:** opaque.
 - **Caching:** 60 s for data, 5 s for `/sync` (a backfill progress bar must move), 10 min for badges. Errors are never cached.
-- **Badge metrics:** `BADGE_METRICS` in `packages/shared/schemas.ts`. An unknown slug still returns a valid "not found" SVG (with a 404), so a README never shows a broken image.
+- **Badge metrics:** `BADGE_METRICS` in `packages/shared/schemas.ts`. An unknown slug still returns a valid "not found" SVG **with status 200**, as shields.io does: GitHub's image proxy shows a broken image for non-2xx responses. Project detail's `meta.price_source` is the source of the most recent priced day, the same rule as `/metrics`.
 - **`/v1/chain/pulse`** (definition chosen by the owner 20 Nov):
   - `real_share` = share of today's txs NOT involving known system addresses (§4.5), labelled "real-activity share".
   - `txs_today` is counted by the worker over RPC since 00:00 UTC, incrementally.

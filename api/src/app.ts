@@ -136,9 +136,10 @@ export const createApp = (repo: Repo, opts: AppOptions = {}) => {
 
   app.get('/v1/projects/:slug', async (c) => {
     const slug = parse(slugSchema, c.req.param('slug'));
-    const project = await repo.getProject(slug);
-    if (!project) throw new HttpError(404, 'not_found', `project "${slug}" not found`);
-    return ok(c, project);
+    const found = await repo.getProject(slug);
+    if (!found) throw new HttpError(404, 'not_found', `project "${slug}" not found`);
+    // Source of the most recent day's price, the same rule as /metrics (§4.3: always say which).
+    return ok(c, found.project, found.priceSource);
   });
 
   app.get('/v1/projects/:slug/metrics', async (c) => {
@@ -194,9 +195,10 @@ export const createApp = (repo: Repo, opts: AppOptions = {}) => {
     const { metric } = parse(badgeQuerySchema, c.req.query());
     const slug = slugSchema.safeParse(m[1]);
     const stats = slug.success ? await repo.badgeStats(slug.data) : undefined;
-    // An unknown project still gets a valid image (a README must never show a broken badge).
+    // An unknown project still gets a valid "not found" image with status 200 (as shields.io does):
+    // GitHub's image proxy shows a broken image for non-2xx, and only 200s are cached here.
     const svg = renderBadge(badgeContent(stats, metric));
-    return c.body(svg, stats === undefined ? 404 : 200, { 'content-type': 'image/svg+xml; charset=utf-8' });
+    return c.body(svg, 200, { 'content-type': 'image/svg+xml; charset=utf-8' });
   });
 
   app.notFound((c) => c.json({ error: { code: 'not_found', message: 'no such endpoint' } } satisfies ApiError, 404));

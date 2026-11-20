@@ -28,8 +28,8 @@ const fakeRepo: Repo = {
   },
   async getProject(slug) {
     return slug === 'qiedex'
-      ? { slug, name: 'QIEDEX', track: null, owner_address: null, onchain_project_id: null, claimed: false, website: null, repo: null,
-          logo_url: null, created_at: '2026-11-19T00:00:00.000Z', contracts: [], stats: stats() }
+      ? { project: { slug, name: 'QIEDEX', track: null, owner_address: null, onchain_project_id: null, claimed: false, website: null,
+          repo: null, logo_url: null, created_at: '2026-11-19T00:00:00.000Z', contracts: [], stats: stats() }, priceSource: 'oracle' }
       : null;
   },
   async projectId(slug) {
@@ -82,6 +82,7 @@ test('envelope: {data, meta:{generated_at, price_source}} on every success', asy
   assert.equal(json.data.slug, 'qiedex');
   assert.deepEqual(Object.keys(json.meta).sort(), ['generated_at', 'price_source']);
   assert.equal(json.meta.generated_at, '2026-11-20T12:00:00.000Z');
+  assert.equal(json.meta.price_source, 'oracle', 'project detail says which price source its USD figures use');
 });
 
 test('metrics: range validated, today passed in UTC, meta.price_source = latest priced day', async () => {
@@ -169,7 +170,7 @@ test('badge: SVG for known, provisional, indexing and unknown projects', async (
   assert.match(prov.text, /Verum score: 56 · provisional/);
   assert.match((await get(a, '/badge/fresh.svg')).text, /Verum WAU: indexing/);
   const unknown = await get(a, '/badge/nope-nope.svg');
-  assert.equal(unknown.res.status, 404);
+  assert.equal(unknown.res.status, 200, 'GitHub shows a broken image for non-2xx badges');
   assert.match(unknown.text, /^<svg/);
   assert.match(unknown.text, /Verum: not found/);
   assert.equal((await get(a, '/badge/qiedex.svg?metric=hype')).res.status, 400);
