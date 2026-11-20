@@ -1,7 +1,12 @@
 /**
  * §12: each metric tested against a fixture of real mainnet txs. Expected values come from
  * INDEPENDENT SQL written from the metric definitions, run on the same frozen DB state on
- * 20 Nov 2026 (as_of 16:03:25Z) — not from this code. Scores are checked against the §5.3 formula.
+ * 20 Nov 2026 (as_of 16:03:25Z), not from this code:
+ *  - tx counts, wallets, windows, volumes: SQL over the raw rows;
+ *  - flags: every §5.3 rule re-implemented in SQL (team, bot 24 h + interval CV + system address,
+ *    burst sliding 10-min window, fresh_single with eth_getTransactionCount); 0 wallet-level differences;
+ *  - organic counts and top-10 share: SQL using those SQL flags, not the rollup's.
+ * The score is then checked against the §5.3 formula over those inputs.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -41,9 +46,9 @@ const sumBig = (xs: string[], decimals: number) =>
 
 // Expected values: independent SQL at the frozen state (see file header).
 const EXPECTED = {
-  qusdc: { txs: 648, wallets: 102, organic: 101, raw_wau: 9, organic_mau: 15, tx_30d: 42, native_wei: 0n, qusdc_raw: 0n,
+  qusdc: { txs: 648, wallets: 102, organic: 101, raw_wau: 9, organic_mau: 15, tx_30d: 42, native_wei: 0n, qusdc_raw: 0n, top10: 0.880952,
     flags: { team: 1, fresh_single: 4 } },
-  qiedex: { txs: 19921, wallets: 282, organic: 251, raw_wau: 17, organic_mau: 35, tx_30d: 2406,
+  qiedex: { txs: 19921, wallets: 282, organic: 251, raw_wau: 17, organic_mau: 35, tx_30d: 2406, top10: 0.976309,
     native_wei: 1_913_542_085_766_244_963_738_893n, qusdc_raw: 47_354_477_417n,
     flags: { team: 2, bot: 10, burst: 20, fresh_single: 4 } },
 } as const;
@@ -78,6 +83,10 @@ for (const slug of ['qusdc', 'qiedex'] as const) {
 
   test(`${slug}: organic-filter flag counts`, () => {
     assert.deepEqual(r.flagCounts, e.flags);
+  });
+
+  test(`${slug}: concentration = share of 30-day txs from the top 10 wallets`, () => {
+    assert.ok(Math.abs(r.summary.top10_share_30d! - e.top10) < 5e-7);
   });
 
   test(`${slug}: Verum score follows the §5.3 formula over the 30-day inputs`, () => {

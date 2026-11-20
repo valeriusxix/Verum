@@ -82,16 +82,19 @@ export const syncPrices = async (d: PriceDeps, nowMs = Date.now()): Promise<{ ro
           .catch(() => null),
       ),
     );
-    const rows = rounds
-      .filter((r): r is Round => r !== null && r[1] > 0n && r[3] > 0n)
+    // Store only the unbroken run before the first failed lookup: max(round_id) is the resume
+    // point, so storing anything after a gap would skip the missing round forever.
+    const firstGap = rounds.findIndex((r) => r === null);
+    const contiguous = (firstGap === -1 ? rounds : rounds.slice(0, firstGap)) as Round[];
+    const rows = contiguous
+      .filter((r) => r[1] > 0n && r[3] > 0n) // a round with no answer is skipped, not a gap
       .map((r) => ({ ts: new Date(Number(r[3]) * 1000), qie_usd: String(toPrice(r[1])), source: 'oracle', round_id: Number(r[0]) }));
     if (rows.length) {
       await d.sql`insert into price_ticks ${d.sql(rows, 'ts', 'qie_usd', 'source', 'round_id')} on conflict do nothing`;
       stored += rows.length;
     }
-    // A missing round would never be retried (max(round_id) moves past it): stop at the first gap.
-    if (rows.length < chunk.length) {
-      d.log.warn('oracle round lookup incomplete; will resume next run', { from: chunk[0], got: rows.length, of: chunk.length });
+    if (firstGap !== -1) {
+      d.log.warn('oracle round lookup failed; will resume from it next run', { round: chunk[firstGap] });
       break;
     }
   }

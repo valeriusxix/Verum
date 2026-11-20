@@ -272,14 +272,23 @@ Show **both** raw and organic numbers everywhere. Never hide raw. Every flagged 
 
 **Organic wallet** = not `team`, not `bot`, not `burst`.
 
-**Implementation decisions (20 Nov, with the owner):** recorded as `IMPLEMENTATION_NOTES` in `packages/shared/metrics.ts` and shown on the API docs page.
-- **Tx count** = distinct tx hashes.
-- **Volume** = inflow from outside the project, counted once per swap.
-- **Verum score** uses the last 30 days. D7 is size-weighted over cohorts whose day 7–13 window has passed. Until one exists, the score is **provisional**: the other three terms rescaled to 0–100.
-- **Retention cohorts** use organic wallets; **new/returning** use all wallets.
-- **Bot and burst** rules use the wallet's activity with the project.
-- **Burst and fresh_single** use the top-level nonce (0 = first-ever tx).
-- **Verification:** every metric is checked in `worker/test/metrics-mainnet.test.ts` against values from independent SQL on a frozen mainnet state. Rule thresholds are checked in `metrics-rules.test.ts`.
+**Implementation rules (20 Nov):** recorded as `IMPLEMENTATION_NOTES` in `packages/shared/metrics.ts` and shown on the API docs page. Each rule's `basis` says who settled it.
+- **Chosen by the owner (20 Nov):**
+  - Tx count = distinct tx hashes.
+  - Volume = inflow from outside the project, counted once per swap.
+  - Price history from oracle rounds since 2026-10-01: day median, carried forward up to 7 days.
+  - Verum score over the last 30 days. D7 is size-weighted over cohorts whose day 7–13 window has passed.
+  - Retention cohorts use organic wallets; new/returning use all wallets.
+- **Proposed while building, then confirmed by the owner (20 Nov):**
+  - Every tx counts for its top-level sender, including a tx that touches the project only through a token transfer.
+  - Tx success: the ext row decides; otherwise any successful row.
+  - Bot and burst rules use the wallet's activity with this project.
+  - Burst and fresh_single use the top-level nonce (0 = first-ever tx).
+  - Before any D7 window has passed, the score is **provisional**: the other three terms rescaled to 0–100.
+    - **UI requirement (Day 6):** a provisional score must always carry a visible "provisional" badge, with the reason on hover. It can rank above a project whose D7 was measured, and the badge is how judges see that.
+- **Verification:**
+  - Every metric is checked in `worker/test/metrics-mainnet.test.ts` against values from independent SQL on a frozen mainnet state. That includes all §5.3 flags re-implemented in SQL, with 0 wallet-level differences.
+  - Rule thresholds are checked in `metrics-rules.test.ts`.
 
 **Verum score (0–100)** shown per project:
 `40·(organic/raw unique wallets) + 25·D7 retention + 20·(1 − top-10 wallet tx share) + 15·(1 − fresh_single share)`, clamped to 0–100.
