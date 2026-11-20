@@ -331,8 +331,18 @@ export const flagsQuerySchema = z.object({ flag: walletFlagSchema.optional() });
 /** GET /v1/projects/:slug/snapshots/:date */
 export const snapshotParamsSchema = z.object({ slug: slugSchema, date: isoDateSchema });
 
-/** GET /badge/:slug.svg?metric=organic_wau */
-export const badgeQuerySchema = z.object({ metric: z.string().default('organic_wau') });
+/** README badge metrics (§8: GET /badge/:slug.svg?metric=organic_wau). */
+export const BADGE_METRICS = [
+  'organic_wau',
+  'organic_mau',
+  'verum_score',
+  'cumulative_wallets',
+  'tx_count_30d',
+  'usd_volume_30d',
+  'd7_retention',
+] as const;
+export type BadgeMetric = (typeof BADGE_METRICS)[number];
+export const badgeQuerySchema = z.object({ metric: z.enum(BADGE_METRICS).default('organic_wau') });
 
 /** GET /v1/projects/:slug/sync -> {status, last_synced_block, progress} */
 export const syncStatusSchema = z.object({

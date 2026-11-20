@@ -10,6 +10,7 @@ import { createContext } from './context';
 import { migrate } from './db/migrate';
 import { logger } from './log';
 import { syncPrices } from './prices';
+import { syncPulse } from './pulse';
 import { rollupAll } from './rollup';
 import { Scheduler } from './scheduler';
 
@@ -33,6 +34,9 @@ const main = async () => {
         log.error('price sync failed', { error: err instanceof Error ? err.message : String(err) }),
       );
       await rollupAll({ sql, rpc, log: logger('rollup') });
+      await syncPulse({ sql, rpc, api, log: logger('pulse') }).catch((err) =>
+        log.error('pulse failed', { error: err instanceof Error ? err.message : String(err) }),
+      );
     } finally {
       rolling = false;
     }

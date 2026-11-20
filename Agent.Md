@@ -139,7 +139,9 @@ Use these. Don't re-guess them.
 | `GET /api/v2/addresses/X/transactions` | 50/page, ~1.6 s, cursor in `next_page_params`. Too slow for backfill; fine for "latest activity". |
 | `GET /api/v2/smart-contracts?filter=solidity` | Verified contracts, 50/page, cursor pagination. Source for pre-indexing. |
 | `GET /api/v2/smart-contracts/counters` | `{smart_contracts, verified_smart_contracts, new_*_24h}` |
-| `GET /api/v2/stats` | total_transactions, transactions_today, total_addresses, `coin_price` (QIE USD fallback). |
+| `GET /api/v2/stats` | total_transactions, transactions_today, total_addresses, `coin_price` (QIE USD fallback). **`transactions_today` is the PREVIOUS complete UTC day**, not today: verified 20 Nov, it equals the tx chart's value for the day before, and an RPC count of today's blocks disagreed. Count today's txs yourself (the worker does, over RPC). |
+| `GET /api?module=block&action=getblocknobytime&timestamp=T&closest=after` | Works: returns the first block at/after T (20 Nov: block 12,030,384 = 2026-11-20T00:00:00Z). |
+| `GET /api/v2/addresses/X/internal-transactions`, `/token-transfers?type=ERC-20&token=T`, `/transactions/{hash}` | Work; 50/page, newest first, cursor in `next_page_params`. Used as an **independent** check of the v1 ingestion. |
 | `GET /api/v2/stats/charts/transactions` | Chain-wide tx/day. Feeds the hero terrain (§7.4). |
 | `GET /api/v2/main-page/transactions` | Latest txs. Feeds live particles. |
 | `GET /api/v2/tokens/X` and `/counters` | Token meta + holders count. |
@@ -172,7 +174,7 @@ Use these. Don't re-guess them.
 - Beware look-alikes named "QIE USDC (Mock)" (`0x88aB…ec2D`, `0xc2e4…B30`) and `qQUSDC` (QIELend receipt token). Hardcode the real address.
 
 ### 4.5 Known noise
-- `0x725Ccc2C1C86c9BC31A90020128D99Ff8D351aA0` (oracle updater) alone has 138,617 txs, about a quarter of all chain history. Chain-wide numbers are dominated by bots. Always exclude known system/oracle addresses from any chain-level "real activity" figure.
+- `0x725Ccc2C1C86c9BC31A90020128D99Ff8D351aA0` (oracle system contract) alone has 138,617 txs, about a quarter of all chain history. It is a **contract** that receives the txs; it doesn't send them (checked 20 Nov: ~540–570 txs/day, ~1/3 of daily chain txs). Chain-wide numbers are dominated by bots. Always exclude known system/oracle addresses from any chain-level "real activity" figure.
 
 ### 4.6 Day 1 open questions: resolved 17 Nov 2026
 - **QIE ID / QIE Pass**: there's **no public resolver**. QIE ID stays stretch; don't fake names. (Only a third-party `QieIdGatedAllowlist` `0x3142…c461` exists.)
@@ -266,7 +268,7 @@ Show **both** raw and organic numbers everywhere. Never hide raw. Every flagged 
 | Flag | Rule | Notes |
 |---|---|---|
 | `team` | Wallet = contract creator, project owner, or any address the owner lists as "team" during registration. | Owners will want to self-declare, because it raises their Verum score. |
-| `bot` | ≥ 200 txs in any 24 h, **or** inter-tx interval coefficient of variation < 0.1 over ≥ 50 txs. | Catches cron-style updaters like 4.5. |
+| `bot` | ≥ 200 txs in any 24 h, **or** inter-tx interval coefficient of variation < 0.1 over ≥ 50 txs, **or ≥ 1,000 txs in any 7 days** (added by the owner 20 Nov). | Catches cron-style updaters like 4.5. The 7-day rule catches keepers that pace themselves: BROQPrediction's keeper sent 12,678 of 12,807 txs at ~190/day with irregular timing (CV 0.86) and passed both original rules. |
 | `burst` | ≥ 20 wallets whose **first ever chain tx** (txlist `nonce == 0` on that wallet) lands in the same 10-min window and that all hit this contract. | Catches sybil farms spun up for a demo. Check `nonce` from our own data first, then RPC `eth_getTransactionCount` at the block if needed (cache it). |
 | `fresh_single` | Wallet's only chain activity ever is a single tx to this project. | Soft flag: counted, but down-weighted in the Verum score. |
 
@@ -307,6 +309,7 @@ Document the formula on the page. Transparency is the point.
 ### 5.5 Milestones
 Owners set up to 3 milestones at registration, matching the hackathon's examples:
 `metric ∈ {organic_wau, organic_mau, cumulative_wallets, tx_count_30d, usd_volume_30d, d7_retention}` · `op ∈ {>=}` · `target` · `window_days`.
+`cumulative_wallets` counts **organic** wallets, consistent with organic_wau/mau (owner, 20 Nov). Mapping to stored columns: `MILESTONE_STAT_COLUMN` in `packages/shared/metrics.ts`.
 When the attester sees a milestone crossed, it calls `markMilestone` on-chain (§6). The UI shows a 90-day clock from the winners' date (10 Dec 2026) with progress bars.
 
 ### 5.6 QIE ecosystem integration checklist (judging bonus)
@@ -519,6 +522,21 @@ GET /v1/chain/pulse                               -> txs today, organic share, o
 GET /badge/:slug.svg?metric=organic_wau           -> README badge (SVG, cached 10 min)
 ```
 Validate params with zod. Return `{data, meta:{generated_at, price_source}}`.
+
+As built (Day 5, 20 Nov):
+- **Errors:** `{error:{code, message, issues?}}` with 400 (bad params), 404 (unknown project or Seal) and 500.
+- **List cursor:** opaque.
+- **Caching:** 60 s for data, 5 s for `/sync` (a backfill progress bar must move), 10 min for badges. Errors are never cached.
+- **Badge metrics:** `BADGE_METRICS` in `packages/shared/schemas.ts`. An unknown slug still returns a valid "not found" SVG (with a 404), so a README never shows a broken image.
+- **`/v1/chain/pulse`** (definition chosen by the owner 20 Nov):
+  - `real_share` = share of today's txs NOT involving known system addresses (§4.5), labelled "real-activity share".
+  - `txs_today` is counted by the worker over RPC since 00:00 UTC, incrementally.
+  - Also: the current QIE price with its source, and all 7 oracle feeds with their age and staleness.
+  - Everything is computed by the worker every 10 min and stored, so the API reads only Postgres.
+- **`/snapshots/:date`** also returns `canonical`: the exact string that was hashed (`canonicalJson` in `packages/shared/snapshot.ts`).
+- **Verified against the explorer (20 Nov), using its v2 endpoints, independent of the v1 ingestion:**
+  - 2026-11-19, all 5 seeded contracts: ext txs, distinct senders and QUSDC transfers match exactly. QUSDC and BROQ Recorded DAU and tx counts, rebuilt from the explorer alone, match.
+  - Each contract's last day with internal calls (incl. 1,098 on the pair): identical sets, and top-level senders match the explorer's tx `from`.
 
 ---
 

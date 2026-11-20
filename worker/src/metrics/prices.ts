@@ -21,10 +21,15 @@ export interface DayPrice {
   fromDay: number;
 }
 
+/**
+ * Median, rounded to 9 decimals: oracle answers have 8, and the mean of two 8-decimal values needs
+ * at most 9, so this only removes float noise (0.15918165499999998 -> 0.159181655).
+ */
 const median = (xs: number[]) => {
   const s = [...xs].sort((a, b) => a - b);
   const m = s.length >> 1;
-  return s.length % 2 ? s[m]! : (s[m - 1]! + s[m]!) / 2;
+  const v = s.length % 2 ? s[m]! : (s[m - 1]! + s[m]!) / 2;
+  return Math.round(v * 1e9) / 1e9;
 };
 
 /** Price for every day in [fromDay, toDay]; null where there is no reliable price. */

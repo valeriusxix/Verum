@@ -9,7 +9,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p .",
-    "test": "tsx --test addresses.test.ts bech32.test.ts metrics.test.ts"
+    "test": "tsx --test addresses.test.ts bech32.test.ts metrics.test.ts snapshot.test.ts"
   },
   "dependencies": {
     "@scure/base": "^1.2.6",

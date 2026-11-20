@@ -157,8 +157,31 @@ against real mainnet data, with expected values from independent SQL (`worker/te
 
 ## Public API
 
-_Lands on Day 5._ `GET /v1/projects`, `/v1/projects/:slug{,/metrics,/cohorts,/flags,/milestones,/snapshots,/snapshots/:date,/sync}`,
-`/v1/chain/pulse`, `/badge/:slug.svg`. Responses: `{data, meta:{generated_at, price_source}}`.
+JSON, CORS open, read-only, every response `{data, meta:{generated_at, price_source}}`. Errors are
+`{error:{code, message}}`. The API only reads Postgres; the worker computes every number.
+
+| Endpoint | |
+|---|---|
+| `GET /v1/projects?track=&sort=organic_wau\|growth_7d\|d7_retention\|verum_score&limit=50&cursor=` | Leaderboard |
+| `GET /v1/projects/:slug` | Project, contracts (verification, ownership, sync), headline stats |
+| `GET /v1/projects/:slug/metrics?range=7d\|30d\|90d\|all` | Daily rows: Recorded/Verum DAU, txs, success, volumes, day price |
+| `GET /v1/projects/:slug/cohorts` | Organic retention cohorts (D1/D7/D30) |
+| `GET /v1/projects/:slug/flags?flag=team\|bot\|burst\|fresh_single` | Flagged wallets with reasons |
+| `GET /v1/projects/:slug/milestones` | Milestones, progress, 90-day clock |
+| `GET /v1/projects/:slug/snapshots[/:date]` | Seals; one Seal includes the exact canonical string that was hashed |
+| `GET /v1/projects/:slug/sync` | Backfill status and progress |
+| `GET /v1/chain/pulse` | Today's chain txs, real-activity share, QIE price, oracle health |
+
+Cached 60 s (`/sync` 5 s). Run locally: `pnpm dev:api` (port 8787).
+
+### README badge
+
+```md
+[![Verum WAU](https://<api-host>/badge/<slug>.svg)](https://<web-host>/p/<slug>)
+```
+
+`?metric=` takes `organic_wau` (default), `organic_mau`, `verum_score`, `cumulative_wallets`, `tx_count_30d`,
+`usd_volume_30d` or `d7_retention`. A provisional score is always marked "provisional".
 
 ## QIE components used
 

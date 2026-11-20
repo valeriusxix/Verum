@@ -10,11 +10,15 @@
   "scripts": {
     "dev": "tsx watch --env-file-if-exists=../.env src/index.ts",
     "start": "tsx --env-file-if-exists=../.env src/index.ts",
-    "typecheck": "tsc --noEmit -p ."
+    "typecheck": "tsc --noEmit -p .",
+    "test": "tsx --test test/*.test.ts"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.8",
     "@verum/shared": "workspace:*",
-    "hono": "^4.13.18"
+    "hono": "^4.13.18",
+    "postgres": "^4.1.1",
+    "viem": "^2.57.20",
+    "zod": "^4.6.7"
   }
 }

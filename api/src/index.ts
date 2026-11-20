@@ -1,14 +1,21 @@
 import { serve } from '@hono/node-server';
-import { Hono } from 'hono';
-import { cors } from 'hono/cors';
+import { createApp } from './app';
+import { createDb } from './db';
+import { loadEnv } from './env';
+import { createPgRepo } from './repo';
 
-// §8 routes (/v1/*, /badge/:slug.svg) land on Day 5. Params validated with @verum/shared zod schemas;
-// responses shaped as `{data, meta:{generated_at, price_source}}`.
+const env = loadEnv();
+const sql = createDb(env.DATABASE_URL, env.DATABASE_CA_CERT);
+const app = createApp(createPgRepo(sql));
 
-const app = new Hono();
-app.use('*', cors({ origin: '*' }));
-
-const port = Number(process.env.PORT ?? 8787);
-serve({ fetch: app.fetch, port }, (info) => {
-  console.log(`[api] listening on http://localhost:${info.port} (Day 1 scaffold: no routes yet)`);
+const server = serve({ fetch: app.fetch, port: env.PORT }, (info) => {
+  console.log(`[api] listening on http://localhost:${info.port}`);
 });
+
+const shutdown = async () => {
+  server.close();
+  await sql.end({ timeout: 5 });
+  process.exit(0);
+};
+process.on('SIGINT', () => void shutdown());
+process.on('SIGTERM', () => void shutdown());

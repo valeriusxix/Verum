@@ -62,6 +62,51 @@ const chainTxCounts = async (d: RollupDeps, wallets: string[], nowMs: number): P
   return out;
 };
 
+/**
+ * Run one DB step, retrying on a dropped connection (postgres.js discards the broken connection, so
+ * the retry gets a fresh one). Every step here is safe to repeat: reads are idempotent and the
+ * write is a single transaction. Seen 20 Nov on a slow link: after a long load, the NEXT query —
+ * read or write — could hit a closed connection.
+ */
+const withConnRetry = async <T,>(d: RollupDeps, step: string, fn: () => Promise<T>): Promise<T> => {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (attempt >= WRITE_ATTEMPTS || !isConnectionError(err)) throw err;
+      d.log.warn('rollup: connection dropped; retrying', { step, attempt });
+      await new Promise((r) => setTimeout(r, 1000 * attempt));
+    }
+  }
+};
+
+const LOAD_CHUNK = 3000;
+
+/**
+ * A project's rows, de-duplicated across its contracts (the same internal call / transfer is stored
+ * once per tracked contract), loaded in short keyset pages. One long transfer kept dying ~70 s in on
+ * a slow link (20 Nov); short pages are each retried on their own, so a drop costs one page.
+ */
+const loadRows = async (d: RollupDeps, addresses: string[]): Promise<TxRow[]> => {
+  const out: TxRow[] = [];
+  let after: [string, string, number] | null = null;
+  for (;;) {
+    const cursor = after;
+    const page = (await withConnRetry(d, 'load', () =>
+      d.sql.unsafe(
+        `select distinct on (hash, kind, log_index) ${METRIC_COLUMNS.join(', ')} from txs
+         where contract = any($1) ${cursor ? 'and (hash, kind, log_index) > ($2, $3, $4)' : ''}
+         order by hash, kind, log_index limit ${LOAD_CHUNK}`,
+        cursor ? [addresses, ...cursor] : [addresses],
+      ),
+    )) as unknown as TxRow[];
+    out.push(...page);
+    if (page.length < LOAD_CHUNK) return out;
+    const last = page[page.length - 1]!;
+    after = [last.hash, last.kind, last.log_index];
+  }
+};
+
 export const rollupProject = async (d: RollupDeps, projectId: number, nowMs = Date.now(), opts: { force?: boolean } = {}) => {
   const contracts = await d.sql<{ address: string; creator_address: string | null; last_synced_block: string | null }[]>`
     select address, creator_address, last_synced_block::text from contracts where project_id = ${projectId}`;
@@ -79,10 +124,7 @@ export const rollupProject = async (d: RollupDeps, projectId: number, nowMs = Da
 
   const addresses = contracts.map((c) => c.address);
   // The same internal call / transfer is stored once per tracked contract: de-dupe in SQL.
-  const rows = (await d.sql.unsafe(
-    `select distinct on (hash, kind, log_index) ${METRIC_COLUMNS.join(', ')} from txs where contract = any($1)`,
-    [addresses],
-  )) as unknown as TxRow[];
+  const rows = await loadRows(d, addresses);
   const txs = buildProjectTxs(
     rows.map((r) => ({ ...r, block: Number(r.block), nonce: r.nonce === null ? null : Number(r.nonce) })),
     new Set(addresses),
@@ -90,27 +132,17 @@ export const rollupProject = async (d: RollupDeps, projectId: number, nowMs = Da
 
   const creators = new Map<string, string>();
   for (const c of contracts) if (c.creator_address) creators.set(c.creator_address, c.address);
-  const chainTxCount = await chainTxCounts(d, [...new Set(freshSingleCandidates(txs))], nowMs);
+  const chainTxCount = await withConnRetry(d, 'chain tx counts', () => chainTxCounts(d, [...new Set(freshSingleCandidates(txs))], nowMs));
   const flags = computeFlags({ txs, creators, owner: project?.owner_address ?? null, teamWallets: [], chainTxCount });
   const organic = organicSet(txs, flags);
 
   const firstDay = txs[0]?.day ?? dayIndex(nowMs);
-  const prices = dayPrices(await loadPriceTicks(d.sql), firstDay, dayIndex(nowMs));
+  const prices = dayPrices(await withConnRetry(d, 'price ticks', () => loadPriceTicks(d.sql)), firstDay, dayIndex(nowMs));
   const daily = dailyMetrics(txs, organic, prices, nowMs);
   const cohortRows = cohorts(txs, organic, nowMs);
   const summary = summarize(txs, flags, organic, cohortRows, prices, nowMs);
 
-  // Retry only the write: a connection dropped after a long load (slow links) must not cost a reload.
-  for (let attempt = 1; ; attempt++) {
-    try {
-      await writeRollup(d, projectId, nowMs, lastBlock, daily, cohortRows, flags, summary);
-      break;
-    } catch (err) {
-      if (attempt >= WRITE_ATTEMPTS || !isConnectionError(err)) throw err;
-      d.log.warn('rollup write: connection dropped; retrying', { project_id: projectId, attempt });
-      await new Promise((r) => setTimeout(r, 1000 * attempt));
-    }
-  }
+  await withConnRetry(d, 'write', () => writeRollup(d, projectId, nowMs, lastBlock, daily, cohortRows, flags, summary));
 
   d.log.info('rollup', {
     project: project?.slug,

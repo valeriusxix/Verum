@@ -29,6 +29,15 @@ importers:
       hono:
         specifier: ^4.13.18
         version: 4.13.18
+      postgres:
+        specifier: ^4.1.1
+        version: 4.1.1
+      viem:
+        specifier: ^2.57.20
+        version: 2.57.20(typescript@5.9.3)(zod@4.6.7)
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
 
   packages/shared:
     dependencies:

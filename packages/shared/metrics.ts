@@ -84,7 +84,9 @@ export type WalletFlag = (typeof WALLET_FLAGS)[number];
 export const WALLET_FLAG_RULES: Readonly<Record<WalletFlag, string>> = {
   team:
     'Wallet = contract creator, project owner, or any address the owner lists as "team" during registration.',
-  bot: '≥ 200 txs in any 24 h, or inter-tx interval coefficient of variation < 0.1 over ≥ 50 txs.',
+  bot:
+    '≥ 200 txs in any 24 h, or inter-tx interval coefficient of variation < 0.1 over ≥ 50 txs, ' +
+    'or ≥ 1,000 txs in any 7 days (sustained automation; added 20 Nov 2026).',
   burst:
     '≥ 20 wallets whose first ever chain tx (nonce == 0) lands in the same 10-min window and that all hit this contract.',
   fresh_single:
@@ -100,6 +102,12 @@ export const ORGANIC_FILTER = {
     maxIntervalCv: 0.1,
     /** …measured over at least this many txs. */
     minTxsForCv: 50,
+    /**
+     * Sustained volume (added by the owner 20 Nov 2026): a keeper sending ~190 txs/day for 67 days
+     * with irregular timing passed both §5.3 rules. ~143/day for a week is beyond a human.
+     */
+    minTxsIn7d: 1000,
+    sustainedWindowDays: 7,
   },
   burst: {
     /** Flag if >= this many first-ever-tx wallets… */
@@ -167,6 +175,20 @@ export const MILESTONE_OPS = ['>='] as const;
 export type MilestoneOp = (typeof MILESTONE_OPS)[number];
 
 export const MAX_MILESTONES = 3;
+
+/**
+ * Which `project_stats` column each milestone metric reads. Used by the API (progress) and the
+ * attester (markMilestone, Day 9). `cumulative_wallets` counts ORGANIC wallets, consistent with
+ * organic_wau / organic_mau (decided by the owner 20 Nov 2026).
+ */
+export const MILESTONE_STAT_COLUMN = {
+  organic_wau: 'organic_wau',
+  organic_mau: 'organic_mau',
+  cumulative_wallets: 'cumulative_organic',
+  tx_count_30d: 'tx_count_30d',
+  usd_volume_30d: 'usd_volume_30d',
+  d7_retention: 'd7_retention_30d',
+} as const satisfies Record<MilestoneMetric, string>;
 
 /** The 90-day milestone clock starts at the winners' date. */
 export const WINNERS_DATE_UTC = '2026-12-10';

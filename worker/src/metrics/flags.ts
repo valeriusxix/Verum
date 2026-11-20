@@ -74,6 +74,8 @@ export const computeFlags = (input: FlagInput): WalletFlags => {
     if (isKnownSystemAddress(w)) add(out, w, 'bot', 'known QIE system / oracle address');
     const peak = maxInWindow(t, bot.rollingWindowHours * 3_600_000);
     if (peak.count >= bot.minTxsIn24h) add(out, w, 'bot', `${peak.count} txs within 24 h from ${utc(peak.start)}`);
+    const week = maxInWindow(t, bot.sustainedWindowDays * 86_400_000);
+    if (week.count >= bot.minTxsIn7d) add(out, w, 'bot', `${week.count} txs within 7 days from ${utc(week.start)}`);
     if (t.length >= bot.minTxsForCv) {
       const cv = intervalCv(t);
       if (cv < bot.maxIntervalCv) add(out, w, 'bot', `clockwork timing: interval CV ${cv.toFixed(3)} over ${t.length} txs`);

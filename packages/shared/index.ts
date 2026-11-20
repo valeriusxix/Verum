@@ -8,3 +8,5 @@ export * from './registry';
 export * from './abi';
 export * from './deployments';
 export * from './wallet';
+export * from './snapshot';
+export * from './api';
