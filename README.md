@@ -79,7 +79,8 @@ pnpm --filter @verum/worker start                           # sync every 2 min
 ```
 
 All explorer calls go through one client: at most 3 req/s globally, 3 retries with jittered exponential
-backoff, 30 s timeout, one log line per request. New contracts backfill first (max 2 at once). After that,
+backoff, 30 s timeout, one log line per request. Pages start at 10,000 rows. On a timeout or 5xx the page
+halves (down to 500) and the same block is read again, then grows back once the explorer recovers. New contracts backfill first (max 2 at once). After that,
 each pass re-reads the last 20 blocks inside a single transaction to absorb re-orgs. The top-level senders of
 internal transactions come from batched JSON-RPC calls spread across rpc1–5.
 

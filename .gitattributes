@@ -1,3 +1,4 @@
 # Normalise line endings in the repo (devs on Windows + Linux CI/hosting).
 * text=auto eol=lf
 *.sol linguist-language=Solidity
+*.gz binary

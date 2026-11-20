@@ -19,6 +19,8 @@ import { ExplorerError, type ExplorerClient, type RequestOptions } from './clien
 export interface BlockRange {
   startblock: number;
   endblock: number;
+  /** Rows per page; defaults to the spec's 10,000. */
+  offset?: number;
 }
 
 type V1Envelope<R> = { status: '0' | '1'; message: string; result: R[] | null };
@@ -37,7 +39,7 @@ const page = (address: string, r: BlockRange) => ({
   endblock: r.endblock,
   sort: 'asc',
   page: 1,
-  offset: TXLIST_PAGE_SIZE,
+  offset: r.offset ?? TXLIST_PAGE_SIZE,
 });
 
 export const createExplorerApi = (client: ExplorerClient) => ({

@@ -8,11 +8,22 @@ const by = (label: string) => fx.contracts.find((c) => c.label === label)!.addre
 const count = (contract: string, kind: string) => fx.rows.filter((r) => r.contract === contract && r.kind === kind).length;
 
 test('fixture matches the explorer counts verified at capture time', () => {
-  // explorer txlist / txlistinternal at the same endblock, 20 Nov 2026
-  assert.deepEqual([count(by('QUSDC'), 'ext'), count(by('QUSDC'), 'int')], [358, 341]);
-  assert.deepEqual([count(by('Router'), 'ext'), count(by('Router'), 'int')], [2406, 311]);
-  assert.deepEqual([count(by('WQIE'), 'ext'), count(by('WQIE'), 'int')], [1568, 282]);
-  assert.equal(fx.rows.length, 5266);
+  // explorer txlist / txlistinternal / tokentx(QUSDC) at the same endblock 12,043,185 (20 Nov 2026)
+  const counts = (label: string) => ['ext', 'int', 'token'].map((k) => count(by(label), k));
+  assert.deepEqual(counts('QUSDC'), [358, 341, 0]);
+  assert.deepEqual(counts('Router'), [2406, 311, 0]);
+  assert.deepEqual(counts('WQIE'), [1568, 282, 0]);
+  assert.deepEqual(counts('WQIE/QUSDC pair'), [4510, 12650, 1414]);
+  assert.equal(fx.rows.length, 23840);
+  assert.deepEqual(fx.meta.synced_to_blocks, [12043185]);
+});
+
+test('QUSDC transfers: real token, 6-decimal raw amounts', () => {
+  const tok = fx.rows.filter((r) => r.kind === 'token');
+  assert.ok(tok.every((r) => r.token === '0x3f43da82ec9a4f5285f10faf1f26eca7319e5da5'));
+  assert.ok(tok.every((r) => /^\d+$/.test(r.token_amount ?? '')));
+  const total = tok.reduce((s, r) => s + BigInt(r.token_amount!), 0n);
+  assert.equal(total, 90_077_382_670n); // 90,077.38267 QUSDC (6 decimals), exact integer sum
 });
 
 test('primary keys are unique and every internal row has its top-level sender', () => {
@@ -27,7 +38,7 @@ test('the same internal call is kept for each tracked contract it touches', () =
     const k = `${r.hash}|${r.log_index}`;
     groups.set(k, (groups.get(k) ?? new Set()).add(r.contract));
   }
-  assert.equal([...groups.values()].filter((s) => s.size > 1).length, 20);
+  assert.equal([...groups.values()].filter((s) => s.size > 1).length, 24);
 });
 
 test('rows are well-formed: lowercase addresses, real timestamps, decimal-string values', () => {

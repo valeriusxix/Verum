@@ -11,7 +11,7 @@
  *    the cursor. A tx dropped by a re-org disappears; readers never see a half-applied window.
  *    Already-resolved origins are carried over, so they aren't fetched again.
  */
-import { REORG_DEPTH_BLOCKS, TXLIST_PAGE_SIZE } from '@verum/shared';
+import { REORG_DEPTH_BLOCKS, TXLIST_MIN_PAGE_SIZE, TXLIST_PAGE_SIZE } from '@verum/shared';
 import type { Db, Sql } from '../db';
 import type { ExplorerApi } from '../explorer/api';
 import type { Priority } from '../explorer/throttle';
@@ -49,26 +49,28 @@ const ORIGIN_SCAN_LIMIT = 2000;
 
 interface Stream {
   kind: TxKind;
-  fetch: (startblock: number) => Promise<TxRow[]>;
+  fetch: (startblock: number, offset: number, retries: number | undefined) => Promise<TxRow[]>;
 }
 
 const streamsFor = (api: ExplorerApi, address: string, endblock: number, priority: Priority): Stream[] => [
   {
     kind: 'ext',
-    fetch: async (sb) =>
-      (await api.txlist(address, { startblock: sb, endblock }, { priority })).map((r) => normalizeExternal(r, address)),
+    fetch: async (sb, offset, retries) =>
+      (await api.txlist(address, { startblock: sb, endblock, offset }, { priority, retries })).map((r) =>
+        normalizeExternal(r, address),
+      ),
   },
   {
     kind: 'int',
-    fetch: async (sb) =>
-      (await api.txlistInternal(address, { startblock: sb, endblock }, { priority })).map((r) =>
+    fetch: async (sb, offset, retries) =>
+      (await api.txlistInternal(address, { startblock: sb, endblock, offset }, { priority, retries })).map((r) =>
         normalizeInternal(r, address),
       ),
   },
   {
     kind: 'token',
-    fetch: async (sb) =>
-      (await api.qusdcTransfers(address, { startblock: sb, endblock }, { priority })).map((r) =>
+    fetch: async (sb, offset, retries) =>
+      (await api.qusdcTransfers(address, { startblock: sb, endblock, offset }, { priority, retries })).map((r) =>
         normalizeTokenTransfer(r, address),
       ),
   },
@@ -157,7 +159,8 @@ const backfill = async (d: SyncDeps, address: string, head: number, priority: Pr
 
       for await (const rows of paginateByBlock({
         startblock: resumeFrom,
-        pageSize: TXLIST_PAGE_SIZE,
+        maxPageSize: TXLIST_PAGE_SIZE,
+        minPageSize: TXLIST_MIN_PAGE_SIZE,
         fetchPage: s.fetch,
         blockOf: (r) => r.block,
         log,
@@ -202,7 +205,8 @@ const incremental = async (
   for (const s of streamsFor(d.api, address, head, priority)) {
     for await (const rows of paginateByBlock({
       startblock: from,
-      pageSize: TXLIST_PAGE_SIZE,
+      maxPageSize: TXLIST_PAGE_SIZE,
+        minPageSize: TXLIST_MIN_PAGE_SIZE,
       fetchPage: s.fetch,
       blockOf: (r) => r.block,
       log: d.log,

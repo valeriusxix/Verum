@@ -1,7 +1,8 @@
 /**
- * Real mainnet fixture (spec §12): normalized `txs` rows for QUSDC, the QIEDEX router and WQIE,
- * exported from the worker's database on 20 Nov 2026 after a full backfill that matched the
- * explorer's counts exactly. Metric tests (Day 4) run against this instead of the network.
+ * Real mainnet fixture (spec §12): 23,840 normalized `txs` rows for QUSDC, the QIEDEX router, WQIE
+ * and the WQIE/QUSDC pair (incl. 1,414 QUSDC transfers), exported from the worker's database on
+ * 20 Nov 2026 at block 12,043,185 after a backfill whose ext/int/token counts matched the explorer
+ * exactly. Metric tests (Day 4) run against this instead of the network.
  */
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';

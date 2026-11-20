@@ -39,6 +39,8 @@ export interface ExplorerClientOptions {
 
 export interface RequestOptions {
   priority?: Priority;
+  /** Overrides the client's retry count for this call (adaptive paging passes 0). */
+  retries?: number;
 }
 
 type Query = Record<string, string | number | undefined>;
@@ -77,6 +79,7 @@ export class ExplorerClient {
   private async request<S extends z.ZodType>(url: string, schema: S, opts: RequestOptions = {}): Promise<z.infer<S>> {
     const { log, clock } = this.o;
     const label = url.replace(this.o.explorer.url, '');
+    const maxRetries = opts.retries ?? this.o.retries;
     for (let attempt = 0; ; attempt++) {
       await this.limiter.acquire(opts.priority ?? 'normal');
       const t0 = clock.now();
@@ -101,8 +104,13 @@ export class ExplorerClient {
         return parsed.data;
       } catch (err) {
         const e = toExplorerError(err);
-        if (!e.retryable || attempt >= this.o.retries) {
-          log.error('request failed', { url: label, attempt, error: e.message });
+        if (!e.retryable || attempt >= maxRetries) {
+          // A deliberate no-retry call (adaptive paging) failing is expected: warn, the caller adapts.
+          (maxRetries === 0 && e.retryable ? log.warn : log.error)('request failed', {
+            url: label,
+            attempt,
+            error: e.message,
+          });
           throw e;
         }
         const backoff = this.backoffMs(attempt);

@@ -10,6 +10,11 @@ export const EXPLORER_TIMEOUT_MS = 30_000;
 // §5.1 ingestion
 /** txlist `offset`. Paginate by `startblock` cursor; stop when a page returns fewer rows. */
 export const TXLIST_PAGE_SIZE = 10_000;
+/**
+ * Floor for adaptive paging (20 Nov 2026): on timeout / 5xx the page halves down to this.
+ * Measured: 10,000 internal-tx rows ≈ 19.5 MB ≈ 31 s (over the 30 s timeout); 2,500 ≈ 6.5 s.
+ */
+export const TXLIST_MIN_PAGE_SIZE = 500;
 /** Re-read the last N blocks each sync to handle re-orgs. */
 export const REORG_DEPTH_BLOCKS = 20;
 export const MAX_CONCURRENT_BACKFILLS = 2;
