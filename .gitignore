@@ -28,3 +28,6 @@ pnpm-debug.log*
 .DS_Store
 *.suo
 *.sw?
+
+# local screenshots / scratch assets (not part of the app)
+Assets/

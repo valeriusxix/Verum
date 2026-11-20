@@ -11,7 +11,7 @@ import type { SyncDeps } from './ingest/sync';
 export const createContext = () => {
   const env = loadEnv();
   setLogLevel(env.LOG_LEVEL);
-  const sql = createDb(env.DATABASE_URL);
+  const sql = createDb(env.DATABASE_URL, env.DATABASE_CA_CERT);
   const api = createExplorerApi(new ExplorerClient({ explorer: NETWORKS[env.VERUM_NETWORK].explorer }));
   const rpc = createRpc(env.VERUM_NETWORK);
   const deps: SyncDeps = { sql, api, rpc, log: logger('sync') };

@@ -3,7 +3,7 @@ import { migrate } from '../db/migrate';
 import { loadEnv } from '../env';
 
 const env = loadEnv();
-const sql = createDb(env.DATABASE_URL);
+const sql = createDb(env.DATABASE_URL, env.DATABASE_CA_CERT);
 migrate(sql)
   .then(() => sql.end({ timeout: 5 }))
   .catch(async (err) => {

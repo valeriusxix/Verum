@@ -125,3 +125,19 @@ create table sync_progress (
   error        text,
   updated_at   timestamptz not null default now()
 );
+
+-- Supabase exposes every `public` table through its REST API (PostgREST) to anyone holding the
+-- project's anon key, which is public by design. RLS on with NO policies = that API can't read or
+-- write anything. The worker and api connect as the table owner, which bypasses RLS.
+-- Every number Verum serves comes from our own /v1 API, never from Supabase's REST API.
+alter table schema_migrations enable row level security;
+alter table projects          enable row level security;
+alter table contracts         enable row level security;
+alter table txs               enable row level security;
+alter table wallet_flags      enable row level security;
+alter table daily_metrics     enable row level security;
+alter table cohorts           enable row level security;
+alter table snapshots         enable row level security;
+alter table milestones        enable row level security;
+alter table price_ticks       enable row level security;
+alter table sync_progress     enable row level security;

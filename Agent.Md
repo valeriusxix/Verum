@@ -536,6 +536,10 @@ Commit at least daily with real messages. The rules ban recycled code and "AI-ge
 - Every explorer call goes through one client with throttle (3 req/s), retry (3×, exponential backoff with jitter), timeout 30 s, and request logging.
 - Never trust the client for metrics; the API reads only from Postgres.
 - Secrets (`ATTESTER_PK`, `DATABASE_URL`) only in env. Never commit `.env`. Ship `.env.example`.
+- Postgres (decided 20 Nov):
+  - **TLS is always required.** postgres.js v4 defaults to `ssl: false`, i.e. unencrypted. Supabase's pooler certificate chains to Supabase's own CA, so full verification needs `DATABASE_CA_CERT`.
+  - **RLS is enabled on every table, with no policies.** Supabase's REST API exposes `public` tables to the public anon key. The worker and api connect as the owner, which bypasses RLS. New tables must enable RLS in the same migration.
+  - Use the Supabase **Session pooler** URL (5432, IPv4).
 - Addresses: store lowercase, display checksummed (viem `getAddress`), truncated `0x1234…abcd` with copy on click.
   - Validate with strict `isAddress`: viem's `getAddress` silently re-checksums a bad mixed-case address instead of rejecting it.
   - Inputs (omnibox, register form) accept both `0x…` and `qie1…` (`qieAddressInputSchema`); storage and the API stay 0x.
